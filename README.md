@@ -1,14 +1,12 @@
-# IMPRESA v2.0
-Versión simplificada según la operación real del negocio.
+# IMPRESA v2.1
 
-- Capital inicial fijo: US$4,100
-- Balance administrativo: 4,100 + ventas acumuladas + saldos actuales de bancos/efectivo - gastos acumulados
-- Bancos y caja con cuentas creadas y actualizadas manualmente
-- Inventario por conteo/cierre mensual; no se descuenta por cada venta
-- Historial de cierres de inventario
-- Ventas y gastos por mes
-- Cotizaciones, producción y clientes sin afectar inventario
-- Reportes mensuales
-- Conversión de cuentas NIO a USD mediante tipo de cambio configurable
+Lógica administrativa acordada:
 
-Nota: el Balance del Negocio es una métrica administrativa personalizada y no un estado financiero formal.
+- Capital inicial US$4,100: SOLO referencia histórica.
+- Ventas: SOLO registro/reportes; no participan en la contabilidad.
+- Inventario: se cuenta y guarda mensualmente.
+- Bancos y caja: saldos manuales (USD/NIO).
+- Valor actual = último inventario + bancos/efectivo - gastos acumulados.
+- Ganancia/Pérdida = valor actual - US$4,100.
+- Si el resultado es positivo se muestra GANANCIA; si es negativo, PÉRDIDA.
+- Cotizaciones, producción y clientes continúan disponibles sin afectar inventario automáticamente.
