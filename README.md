@@ -1,9 +1,13 @@
-# IMPRESA v2.8.0
+# IMPRESA v3.0.0 — Rediseño profesional completo
 
-- Dashboard muestra C$ y US$ en los valores financieros principales.
-- Contabilidad mantiene C$ y US$.
-- Nuevo ejercicio contable visible:
-  Valor actual del negocio − Base inicial US$4,100 = Ganancia/Pérdida.
-- El resultado se recalcula automáticamente con inventario, bancos/caja y gastos del mes.
-- El inventario abierto sigue actualizando Dashboard y Contabilidad sin necesidad de cerrar el mes.
-- Cerrar mes conserva la fotografía histórica.
+Se unificó el diseño de toda la aplicación con el estilo visual aprobado en Bancos y Caja.
+
+- Dashboard: tarjetas financieras modernas y jerarquía visual.
+- Ventas y Gastos: formularios agrupados, tablas más limpias y botones consistentes.
+- Inventario: conteo, conversión, cierre e historial con el mismo sistema visual.
+- Bancos y Caja: conserva tarjetas y resumen C$/US$ aprobado.
+- Contabilidad: resultado provisional, ejercicio contable e historial con presentación profesional.
+- Cotizaciones, Producción, Clientes y Reportes: paneles, tablas y estados unificados.
+- Configuración: presentación limpia del modelo contable y tipo de cambio.
+- Navegación lateral, marca IMPRESA, formularios, botones, tablas y responsive móvil rediseñados.
+- Se mantiene la lógica existente: inventario persistente, contabilidad automática, C$/US$, base histórica US$4,100 y cierres mensuales.
