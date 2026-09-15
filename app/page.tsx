@@ -7,6 +7,9 @@ type Expense={id:string;date:string;category:string;description:string;amount:nu
 type Product={id:string;sku:string;name:string;stock:number;cost:number;price:number;min:number};
 type Movement={id:string;date:string;type:'Ingreso'|'Salida';description:string;amount:number;account:string};
 type Client={id:string;name:string;phone:string;email:string};
+type Quote={id:string;date:string;client:string;description:string;qty:number;unit:number;discount:number;status:'Borrador'|'Aprobada'|'Rechazada'};
+type Job={id:string;date:string;client:string;description:string;qty:number;stage:'Nueva'|'Diseño'|'Impresión'|'Bordado'|'Lista'|'Entregada'};
+type Purchase={id:string;date:string;supplier:string;description:string;amount:number;account:string};
 
 const sections=['Dashboard','Ventas','Cotizaciones','Producción','Clientes','Inventario','Compras','Gastos','Bancos y Caja','Por Cobrar','Por Pagar','Contabilidad','Reportes','Configuración'];
 const money=(n:number,c='USD')=>new Intl.NumberFormat('es-NI',{style:'currency',currency:c}).format(n||0);
@@ -25,6 +28,9 @@ export default function Home(){
  const [products,setProducts]=useState<Product[]>(seedProducts);
  const [moves,setMoves]=useState<Movement[]>([]);
  const [clients,setClients]=useState<Client[]>([]);
+ const [quotes,setQuotes]=useState<Quote[]>([]);
+ const [jobs,setJobs]=useState<Job[]>([]);
+ const [purchases,setPurchases]=useState<Purchase[]>([]);
  const rate=36.8, cv=(v:number)=>currency==='USD'?v:v*rate;
 
  useEffect(()=>{try{
@@ -33,6 +39,9 @@ export default function Home(){
    setProducts(JSON.parse(localStorage.getItem('impresa-products')||JSON.stringify(seedProducts)));
    setMoves(JSON.parse(localStorage.getItem('impresa-moves')||'[]'));
    setClients(JSON.parse(localStorage.getItem('impresa-clients')||'[]'));
+   setQuotes(JSON.parse(localStorage.getItem('impresa-quotes')||'[]'));
+   setJobs(JSON.parse(localStorage.getItem('impresa-jobs')||'[]'));
+   setPurchases(JSON.parse(localStorage.getItem('impresa-purchases')||'[]'));
  }catch{}},[]);
  useEffect(()=>{
    localStorage.setItem('impresa-sales',JSON.stringify(sales));
@@ -40,7 +49,10 @@ export default function Home(){
    localStorage.setItem('impresa-products',JSON.stringify(products));
    localStorage.setItem('impresa-moves',JSON.stringify(moves));
    localStorage.setItem('impresa-clients',JSON.stringify(clients));
- },[sales,expenses,products,moves,clients]);
+   localStorage.setItem('impresa-quotes',JSON.stringify(quotes));
+   localStorage.setItem('impresa-jobs',JSON.stringify(jobs));
+   localStorage.setItem('impresa-purchases',JSON.stringify(purchases));
+ },[sales,expenses,products,moves,clients,quotes,jobs,purchases]);
 
  return <div className="app">
    <aside className="side">
@@ -57,6 +69,9 @@ export default function Home(){
     </div>
     {tab==='Dashboard'?<Dashboard currency={currency} cv={cv} sales={sales} expenses={expenses} products={products}/>:
      tab==='Ventas'?<Sales sales={sales} setSales={setSales} setMoves={setMoves}/>:
+     tab==='Cotizaciones'?<Quotes quotes={quotes} setQuotes={setQuotes} setJobs={setJobs}/>:
+     tab==='Producción'?<Production jobs={jobs} setJobs={setJobs}/>:
+     tab==='Compras'?<Purchases purchases={purchases} setPurchases={setPurchases} setMoves={setMoves}/>:
      tab==='Gastos'?<Expenses expenses={expenses} setExpenses={setExpenses} setMoves={setMoves}/>:
      tab==='Inventario'?<Inventory products={products} setProducts={setProducts}/>:
      tab==='Bancos y Caja'?<Cash moves={moves}/>:
@@ -88,6 +103,24 @@ function Sales({sales,setSales,setMoves}:{sales:Sale[];setSales:React.Dispatch<R
  const save=()=>{const total=Number(f.total),paid=Number(f.paid||0);if(!f.client||total<=0)return alert('Escribe el cliente y un total válido.');const s:Sale={id:uid('V'),date:today(),client:f.client,description:f.description,total,paid,account:f.account,status:paid>=total?'Pagada':paid>0?'Pago parcial':'Pendiente'};setSales(x=>[...x,s]);if(paid>0)setMoves(x=>[...x,{id:uid('M'),date:today(),type:'Ingreso',description:`Cobro ${s.id} · ${s.client}`,amount:paid,account:f.account}]);setF({client:'',description:'',total:'',paid:'',account:'Banco USD'})};
  return <div className="panel space"><h2>Nueva venta</h2><div className="formgrid"><Field label="Cliente" value={f.client} onChange={v=>setF({...f,client:v})}/><Field label="Trabajo / descripción" value={f.description} onChange={v=>setF({...f,description:v})}/><Field label="Total US$" value={f.total} onChange={v=>setF({...f,total:v})} type="number"/><Field label="Pago recibido US$" value={f.paid} onChange={v=>setF({...f,paid:v})} type="number"/><div className="field"><label>Cuenta de cobro</label><select value={f.account} onChange={e=>setF({...f,account:e.target.value})}><option>Banco USD</option><option>Banco NIO</option><option>Caja USD</option><option>Caja NIO</option></select></div></div><button className="btn primary mt" onClick={save}>Registrar venta</button><h2 className="sectionTitle">Historial de ventas</h2><div className="tablewrap"><table className="table"><thead><tr><th>Orden</th><th>Fecha</th><th>Cliente</th><th>Total</th><th>Pagado</th><th>Saldo</th><th>Estado</th></tr></thead><tbody>{sales.slice().reverse().map(s=><tr key={s.id}><td>{s.id}</td><td>{s.date}</td><td>{s.client}</td><td>{money(s.total)}</td><td>{money(s.paid)}</td><td>{money(s.total-s.paid)}</td><td><span className="badge">{s.status}</span></td></tr>)}</tbody></table></div></div>
 }
+
+function Quotes({quotes,setQuotes,setJobs}:{quotes:Quote[];setQuotes:React.Dispatch<React.SetStateAction<Quote[]>>;setJobs:React.Dispatch<React.SetStateAction<Job[]>>}){
+ const [f,setF]=useState({client:'',description:'',qty:'1',unit:'',discount:'0'});
+ const save=()=>{const qty=Number(f.qty),unit=Number(f.unit),discount=Number(f.discount);if(!f.client||qty<=0||unit<=0)return alert('Completa cliente, cantidad y precio.');setQuotes(x=>[...x,{id:uid('COT'),date:today(),client:f.client,description:f.description,qty,unit,discount,status:'Borrador'}]);setF({client:'',description:'',qty:'1',unit:'',discount:'0'})};
+ const approve=(q:Quote)=>{setQuotes(x=>x.map(a=>a.id===q.id?{...a,status:'Aprobada'}:a));if(!q.description)return;setJobs(x=>x.some(j=>j.id==='PROD-'+q.id)?x:[...x,{id:'PROD-'+q.id,date:today(),client:q.client,description:q.description,qty:q.qty,stage:'Nueva'}])};
+ return <div className="panel space"><h2>Nueva cotización</h2><div className="formgrid"><Field label="Cliente" value={f.client} onChange={v=>setF({...f,client:v})}/><Field label="Trabajo" value={f.description} onChange={v=>setF({...f,description:v})}/><Field label="Cantidad" value={f.qty} onChange={v=>setF({...f,qty:v})} type="number"/><Field label="Precio unitario US$" value={f.unit} onChange={v=>setF({...f,unit:v})} type="number"/><Field label="Descuento %" value={f.discount} onChange={v=>setF({...f,discount:v})} type="number"/></div><button className="btn primary mt" onClick={save}>Crear cotización</button><div className="tablewrap sectionTitle"><table className="table"><thead><tr><th>Nº</th><th>Cliente</th><th>Trabajo</th><th>Cant.</th><th>Total</th><th>Estado</th><th>Acción</th></tr></thead><tbody>{quotes.slice().reverse().map(q=>{const total=q.qty*q.unit*(1-q.discount/100);return <tr key={q.id}><td>{q.id}</td><td>{q.client}</td><td>{q.description}</td><td>{q.qty}</td><td>{money(total)}</td><td><span className="badge">{q.status}</span></td><td>{q.status!=='Aprobada'&&<button className="mini" onClick={()=>approve(q)}>Aprobar → Producción</button>}</td></tr>})}</tbody></table></div></div>
+}
+function Production({jobs,setJobs}:{jobs:Job[];setJobs:React.Dispatch<React.SetStateAction<Job[]>>}){
+ const stages:Job['stage'][]=['Nueva','Diseño','Impresión','Bordado','Lista','Entregada'];
+ const next=(j:Job)=>{const i=stages.indexOf(j.stage);if(i<stages.length-1)setJobs(x=>x.map(a=>a.id===j.id?{...a,stage:stages[i+1]}:a))};
+ return <div className="space"><div className="kanban">{stages.map(stage=><div className="kanbanCol" key={stage}><h3>{stage}<span>{jobs.filter(j=>j.stage===stage).length}</span></h3>{jobs.filter(j=>j.stage===stage).map(j=><div className="job" key={j.id}><b>{j.client}</b><p>{j.description}</p><small>{j.qty} unidades · {j.id}</small>{stage!=='Entregada'&&<button className="mini" onClick={()=>next(j)}>Siguiente →</button>}</div>)}</div>)}</div></div>
+}
+function Purchases({purchases,setPurchases,setMoves}:{purchases:Purchase[];setPurchases:React.Dispatch<React.SetStateAction<Purchase[]>>;setMoves:React.Dispatch<React.SetStateAction<Movement[]>>}){
+ const [f,setF]=useState({supplier:'',description:'',amount:'',account:'Banco USD'});
+ const save=()=>{const amount=Number(f.amount);if(!f.supplier||!f.description||amount<=0)return alert('Completa proveedor, descripción y monto.');const p:Purchase={id:uid('COM'),date:today(),supplier:f.supplier,description:f.description,amount,account:f.account};setPurchases(x=>[...x,p]);setMoves(x=>[...x,{id:uid('M'),date:today(),type:'Salida',description:`Compra · ${p.description}`,amount:-amount,account:p.account}]);setF({supplier:'',description:'',amount:'',account:'Banco USD'})};
+ return <div className="panel space"><h2>Registrar compra</h2><div className="formgrid"><Field label="Proveedor" value={f.supplier} onChange={v=>setF({...f,supplier:v})}/><Field label="Descripción / materiales" value={f.description} onChange={v=>setF({...f,description:v})}/><Field label="Total US$" value={f.amount} onChange={v=>setF({...f,amount:v})} type="number"/><div className="field"><label>Cuenta pagada</label><select value={f.account} onChange={e=>setF({...f,account:e.target.value})}><option>Banco USD</option><option>Caja USD</option><option>Banco NIO</option><option>Caja NIO</option></select></div></div><button className="btn primary mt" onClick={save}>Registrar compra</button><div className="tablewrap sectionTitle"><table className="table"><thead><tr><th>Nº</th><th>Fecha</th><th>Proveedor</th><th>Descripción</th><th>Cuenta</th><th>Total</th></tr></thead><tbody>{purchases.slice().reverse().map(p=><tr key={p.id}><td>{p.id}</td><td>{p.date}</td><td>{p.supplier}</td><td>{p.description}</td><td>{p.account}</td><td>{money(p.amount)}</td></tr>)}</tbody></table></div></div>
+}
+
 function Expenses({expenses,setExpenses,setMoves}:{expenses:Expense[];setExpenses:React.Dispatch<React.SetStateAction<Expense[]>>;setMoves:React.Dispatch<React.SetStateAction<Movement[]>>}){
  const [f,setF]=useState({category:'Operativo',description:'',amount:'',account:'Caja USD'});
  const save=()=>{const amount=Number(f.amount);if(!f.description||amount<=0)return alert('Escribe una descripción y monto válido.');const e:Expense={id:uid('G'),date:today(),category:f.category,description:f.description,amount,account:f.account};setExpenses(x=>[...x,e]);setMoves(x=>[...x,{id:uid('M'),date:today(),type:'Salida',description:e.description,amount:-amount,account:e.account}]);setF({...f,description:'',amount:''})};
