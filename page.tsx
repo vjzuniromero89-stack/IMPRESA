@@ -1,0 +1,156 @@
+'use client';
+import {useEffect,useMemo,useState} from 'react';
+
+type Sale={id:string;date:string;client:string;description:string;amount:number;currency?:'C$'|'US$';enteredAmount?:number;status:string};
+type Expense={id:string;date:string;category:string;description:string;amount:number;currency?:'C$'|'US$';enteredAmount?:number};
+type Account={id:string;name:string;currency:'C$'|'US$';balance:number;updated:string};
+type InventoryItem={id:string;name:string;category:string;qty:number;unitValue:number;currency?:'C$'|'US$';enteredUnitValue?:number};
+type InventoryClose={id:string;month:string;date:string;items:InventoryItem[];total:number;notes:string};
+type MonthClose={id:string;month:string;closedAt:string;rate:number;inventoryC:number;accounts:{name:string;currency:'C$'|'US$';balance:number;equivalentC:number}[];bankCashC:number;expensesC:number;salesC:number;currentValueC:number;baseC:number;resultC:number;notes:string};
+type Client={id:string;name:string;phone:string;email:string};
+type Quote={id:string;date:string;client:string;description:string;amount:number;currency?:'C$'|'US$';enteredAmount?:number;status:string};
+type Job={id:string;date:string;client:string;description:string;stage:string};
+const tabs=['Dashboard','Ventas','Gastos','Inventario mensual','Bancos y Caja','Contabilidad','Cierre del mes','Cotizaciones','Producción','Clientes','Reportes','Configuración'];
+const uid=(p:string)=>p+'-'+Date.now().toString().slice(-8);
+const today=()=>new Date().toISOString().slice(0,10);
+const monthNow=()=>new Date().toISOString().slice(0,7);
+const money=(n:number,c:'C$'|'US$'='C$')=>`${c}${new Intl.NumberFormat('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(n)||0)}`;
+const dual=(nio:number,rate:number)=>`${money(nio,'C$')} · ${money(rate>0?nio/rate:0,'US$')}`;
+const toNio=(amount:number,currency:'C$'|'US$',rate:number)=>currency==='US$'?amount*rate:amount;
+
+// Persistencia segura: primero carga localStorage y solo después empieza a guardar.
+const useStore=<T,>(key:string,initial:T)=>{
+ const [v,setV]=useState<T>(initial);
+ const [ready,setReady]=useState(false);
+ useEffect(()=>{
+   setReady(false);
+   try{
+     const x=localStorage.getItem(key);
+     setV(x?JSON.parse(x):initial);
+   }catch{setV(initial)}
+   finally{setReady(true)}
+ },[key]);
+ useEffect(()=>{
+   if(!ready)return;
+   try{localStorage.setItem(key,JSON.stringify(v))}catch{}
+ },[key,v,ready]);
+ return [v,setV] as const
+};
+
+export default function Home(){
+ const [tab,setTab]=useState('Dashboard'),[month,setMonth]=useState(monthNow()),[rate,setRate]=useStore('impresa-rate',37);
+ const [sales,setSales]=useStore<Sale[]>('impresa-simple-sales',[]);
+ const [expenses,setExpenses]=useStore<Expense[]>('impresa-simple-expenses',[]);
+ const [accounts,setAccounts]=useStore<Account[]>('impresa-simple-accounts',[
+  {id:'bac-usd',name:'BAC Dólares',currency:'US$',balance:0,updated:today()},
+  {id:'bac-nio',name:'BAC Córdobas',currency:'C$',balance:0,updated:today()},
+  {id:'cash',name:'Efectivo',currency:'C$',balance:0,updated:today()}
+ ]);
+ const [closes,setCloses]=useStore<InventoryClose[]>('impresa-simple-inventory',[]);
+ const [monthCloses,setMonthCloses]=useStore<MonthClose[]>('impresa-month-closes',[]);
+ const [clients,setClients]=useStore<Client[]>('impresa-simple-clients',[]);
+ const [quotes,setQuotes]=useStore<Quote[]>('impresa-simple-quotes',[]);
+ const [jobs,setJobs]=useStore<Job[]>('impresa-simple-jobs',[]);
+ const [activeInventory]=useStore<InventoryItem[]>(`impresa-inventory-draft-${month}`,[]);
+ const activeInventoryTotal=activeInventory.reduce((n,x)=>n+x.qty*x.unitValue,0);
+ const props={sales,setSales,expenses,setExpenses,accounts,setAccounts,closes,setCloses,monthCloses,setMonthCloses,clients,setClients,quotes,setQuotes,jobs,setJobs,month,rate,setRate,activeInventory,activeInventoryTotal};
+ return <div className="app"><aside><div className="brand"><span className="brandMark">D</span>IMPRESA</div><div className="sub">Tu negocio en orden · Nicaragua</div><nav>{tabs.map(x=><button key={x} className={tab===x?'active':''} onClick={()=>setTab(x)}>{x}</button>)}</nav></aside><main><header><div><h1>{tab}</h1><p>Ventas · Gastos · Saldos reales · Inventario mensual</p></div><div className="actions"><label className="month"><span>Mes</span><input type="month" value={month} onChange={e=>setMonth(e.target.value)}/></label><button className="btn" onClick={()=>setTab('Gastos')}>+ Gasto</button><button className="btn primary" onClick={()=>setTab('Ventas')}>+ Venta</button></div></header>
+ {tab==='Dashboard'?<Dashboard {...props}/>:tab==='Ventas'?<Sales {...props}/>:tab==='Gastos'?<Expenses {...props}/>:tab==='Inventario mensual'?<Inventory {...props}/>:tab==='Bancos y Caja'?<Accounts {...props}/>:tab==='Contabilidad'?<Accounting {...props}/>:tab==='Cierre del mes'?<MonthClosing {...props}/>:tab==='Cotizaciones'?<Quotes {...props}/>:tab==='Producción'?<Production {...props}/>:tab==='Clientes'?<Clients {...props}/>:tab==='Reportes'?<Reports {...props}/>:<Settings {...props}/>}
+ </main></div>
+}
+function Dashboard({sales,expenses,accounts,closes,month,rate,activeInventoryTotal}:any){
+ const sm=sales.filter((x:Sale)=>x.date.startsWith(month));
+ const em=expenses.filter((x:Expense)=>x.date.startsWith(month));
+ const last=[...closes].sort((a:InventoryClose,b:InventoryClose)=>b.month.localeCompare(a.month))[0];
+ const inventory=activeInventoryTotal>0?activeInventoryTotal:(last?.total||0);
+ const bankCash=accounts.reduce((a:number,x:Account)=>a+(x.currency==='US$'?x.balance*rate:x.balance),0);
+ const allSales=sales.reduce((a:number,x:Sale)=>a+x.amount,0);
+ const allExp=expenses.reduce((a:number,x:Expense)=>a+x.amount,0);
+ const monthExp=em.reduce((a:number,x:Expense)=>a+x.amount,0);
+ const currentValue=inventory+bankCash-monthExp;
+ return <><div className="cards"><Card t="Valor actual del negocio" v={dual(currentValue,rate)}/><Card t={activeInventoryTotal>0?"Inventario actual · provisional":"Último inventario"} v={dual(inventory,rate)}/><Card t="Bancos + efectivo" v={dual(bankCash,rate)}/><Card t="Gastos acumulados" v={dual(allExp,rate)}/><Card t={`Ventas ${month} (solo registro)`} v={dual(sm.reduce((a:number,x:Sale)=>a+x.amount,0),rate)}/><Card t={`Gastos ${month}`} v={dual(em.reduce((a:number,x:Expense)=>a+x.amount,0),rate)}/><Card t="Ventas acumuladas (solo registro)" v={dual(allSales,rate)}/><Card t="Mes inventario" v={last?.month||'Sin cierre'}/></div><div className="cols"><Panel title="Saldos actuales">{accounts.map((a:Account)=><Stat key={a.id} l={a.name} v={money(a.balance,a.currency)}/>)}</Panel><Panel title="Último cierre de inventario">{last?<><Stat l="Mes" v={last.month}/><Stat l="Productos/materiales" v={String(last.items.length)}/><Stat l="Valor total" v={money(last.total,'C$')}/></>:<Empty text="Todavía no has registrado un inventario mensual."/>}</Panel></div></>
+}
+function Sales({sales,setSales,month,rate}:any){const [f,setF]=useState({date:today(),client:'',description:'',amount:'',currency:'C$',status:'Pagada'});const entered=+f.amount||0,nio=toNio(entered,f.currency as 'C$'|'US$',rate);const add=()=>{if(!f.client||!entered)return alert('Completa cliente y monto.');setSales([...sales,{id:uid('V'),date:f.date,client:f.client,description:f.description,amount:nio,currency:f.currency as 'C$'|'US$',enteredAmount:entered,status:f.status}]);setF({...f,client:'',description:'',amount:''})};return <Panel title="▣ Registro de ventas"><div className="form grid"><Input l="Fecha" v={f.date} s={v=>setF({...f,date:v})} type="date"/><Input l="Cliente" v={f.client} s={v=>setF({...f,client:v})}/><Input l="Trabajo / descripción" v={f.description} s={v=>setF({...f,description:v})}/><Input l={`Total ${f.currency}`} v={f.amount} s={v=>setF({...f,amount:v})} type="number"/><Select l="Moneda" v={f.currency} s={v=>setF({...f,currency:v})} opts={['C$','US$']}/><div className="conversion"><span>Conversión automática</span><b>{dual(nio,rate)}</b></div><Select l="Estado" v={f.status} s={v=>setF({...f,status:v})} opts={['Pagada','Pendiente','Pago parcial']}/><button className="btn primary" onClick={add}>Registrar venta</button></div><Table heads={['Fecha','Orden','Cliente','Descripción','C$','US$','Estado','Acción']} rows={sales.filter((x:Sale)=>x.date.startsWith(month)).slice().reverse().map((x:Sale)=>[x.date,x.id,x.client,x.description,money(x.amount,'C$'),money(rate>0?x.amount/rate:0,'US$'),x.status,<button className="dangerSmall" onClick={()=>{if(confirm('¿Borrar esta venta?'))setSales(sales.filter((z:Sale)=>z.id!==x.id))}}>Borrar</button>])}/></Panel>}
+function Expenses({expenses,setExpenses,month,rate}:any){const [f,setF]=useState({date:today(),category:'Operativo',description:'',amount:'',currency:'C$'});const entered=+f.amount||0,nio=toNio(entered,f.currency as 'C$'|'US$',rate);const add=()=>{if(!f.description||!entered)return alert('Completa descripción y monto.');setExpenses([...expenses,{id:uid('G'),date:f.date,category:f.category,description:f.description,amount:nio,currency:f.currency as 'C$'|'US$',enteredAmount:entered}]);setF({...f,description:'',amount:''})};return <Panel title="▤ Registro de gastos"><div className="form grid"><Input l="Fecha" v={f.date} s={v=>setF({...f,date:v})} type="date"/><Select l="Categoría" v={f.category} s={v=>setF({...f,category:v})} opts={['Materiales','Operativo','Servicios','Transporte','Nómina','Publicidad','Equipos','Otro']}/><Input l="Descripción" v={f.description} s={v=>setF({...f,description:v})}/><Input l={`Monto ${f.currency}`} v={f.amount} s={v=>setF({...f,amount:v})} type="number"/><Select l="Moneda" v={f.currency} s={v=>setF({...f,currency:v})} opts={['C$','US$']}/><div className="conversion"><span>Conversión automática</span><b>{dual(nio,rate)}</b></div><button className="btn primary" onClick={add}>Guardar gasto</button></div><Table heads={['Fecha','Categoría','Descripción','C$','US$','Acción']} rows={expenses.filter((x:Expense)=>x.date.startsWith(month)).slice().reverse().map((x:Expense)=>[x.date,x.category,x.description,money(x.amount,'C$'),money(rate>0?x.amount/rate:0,'US$'),<button className="dangerSmall" onClick={()=>{if(confirm('¿Borrar este gasto?'))setExpenses(expenses.filter((z:Expense)=>z.id!==x.id))}}>Borrar</button>])}/></Panel>}
+function Accounts({accounts,setAccounts,rate}:any){
+ const [f,setF]=useState({name:'',currency:'C$'});
+ const add=()=>{if(!f.name)return;setAccounts([...accounts,{id:uid('CTA'),name:f.name,currency:f.currency as 'C$'|'US$',balance:0,updated:today()}]);setF({...f,name:''})};
+ const update=(a:Account)=>{const x=prompt(`Saldo actual de ${a.name} (${a.currency})`,String(a.balance));if(x===null||isNaN(+x))return;setAccounts(accounts.map((z:Account)=>z.id===a.id?{...z,balance:+x,updated:today()}:z))};
+ const rows=accounts.map((a:Account)=>{const nio=a.currency==='US$'?a.balance*rate:a.balance;return {...a,nio,usd:rate>0?nio/rate:0}});
+ const totalNio=rows.reduce((n:number,a:any)=>n+a.nio,0),totalUsd=rate>0?totalNio/rate:0;
+ return <>
+  <div className="accountCards">{rows.map((a:any)=><div className={`accountCard ${a.currency==='US$'?'usd':'nio'} ${a.name.toLowerCase().includes('efectivo')?'cash':''}`} key={a.id}>
+   <div className="accountTitle"><span className="accountIcon">{a.name.toLowerCase().includes('efectivo')?'▣':'▥'}</span><b>{a.name}</b><small>· {a.currency}</small></div>
+   <strong className="accountMain">{money(a.balance,a.currency)}</strong>
+   <div className="accountDual">{money(a.nio,'C$')} · {money(a.usd,'US$')}</div>
+   <div className="accountUpdated">Actualizado {a.updated}</div>
+   <div className="accountActions"><button className="btn" onClick={()=>update(a)}>Actualizar saldo</button><button className="dangerSmall" onClick={()=>{if(confirm(`¿Borrar la cuenta ${a.name}?`))setAccounts(accounts.filter((z:Account)=>z.id!==a.id))}}>Borrar</button></div>
+  </div>)}</div>
+  <Panel title="▦ Resumen de Bancos y Caja">
+   <div className="summaryIntro"><b>Todas las cuentas en córdobas y dólares</b><span>Tipo de cambio: C${rate.toFixed(2)} = US$1.00</span></div>
+   <div className="bankSummary"><div className="bankHead"><b>Cuenta</b><b>Saldo en C$</b><b>Saldo en US$</b></div>
+   {rows.map((a:any)=><div className="bankRow" key={a.id}><span><b>{a.name}</b></span><strong>{money(a.nio,'C$')}</strong><strong>{money(a.usd,'US$')}</strong></div>)}
+   <div className="bankRow bankTotal"><span><b>TOTAL BANCOS + CAJA</b></span><strong>{money(totalNio,'C$')}</strong><strong>{money(totalUsd,'US$')}</strong></div></div>
+  </Panel>
+  <Panel title="＋ Agregar cuenta o caja"><div className="form inline"><Input l="Nombre (ej. BAC Dólares)" v={f.name} s={v=>setF({...f,name:v})}/><Select l="Moneda" v={f.currency} s={v=>setF({...f,currency:v})} opts={['C$','US$']}/><button className="btn primary" onClick={add}>Agregar cuenta</button></div><div className="note">Tipo de cambio actual del sistema: C${rate.toFixed(2)} = US$1.00. El resumen convierte automáticamente todas las cuentas.</div></Panel>
+ </>
+}
+function Inventory({closes,monthCloses,month,rate}:any){
+ const [items,setItems]=useStore<InventoryItem[]>(`impresa-inventory-draft-${month}`,[]);
+ const [f,setF]=useState({name:'',category:'Camisas',qty:'',unitValue:'',currency:'C$'});
+ const total=items.reduce((a,x)=>a+x.qty*x.unitValue,0),entered=+f.unitValue||0,unitNio=toNio(entered,f.currency as 'C$'|'US$',rate);
+ const alreadyClosed=monthCloses.some((x:MonthClose)=>x.month===month);
+ const add=()=>{if(alreadyClosed)return alert('Este mes ya está cerrado. Selecciona el nuevo mes.');if(!f.name||!+f.qty)return alert('Completa producto/material y cantidad.');setItems(prev=>[...prev,{id:uid('I'),name:f.name,category:f.category,qty:+f.qty,unitValue:unitNio,currency:f.currency as 'C$'|'US$',enteredUnitValue:entered}]);setF({...f,name:'',qty:'',unitValue:''})};
+ return <><Panel title={`◇ Inventario mensual · ${month}`}>{alreadyClosed?<div className="closedBanner">✓ Este mes está cerrado. Consulta el cierre en “Cierre del mes”.</div>:<><div className="form grid"><Input l="Producto / material" v={f.name} s={v=>setF({...f,name:v})}/><Select l="Categoría" v={f.category} s={v=>setF({...f,category:v})} opts={['Camisas','Hilos','Tintas','Vinil','Sublimación','Empaque','Otros']}/><Input l="Cantidad física" v={f.qty} s={v=>setF({...f,qty:v})} type="number"/><Input l={`Valor unitario ${f.currency}`} v={f.unitValue} s={v=>setF({...f,unitValue:v})} type="number"/><Select l="Moneda" v={f.currency} s={v=>setF({...f,currency:v})} opts={['C$','US$']}/><div className="conversion"><span>Valor unitario convertido</span><b>{dual(unitNio,rate)}</b></div><button className="btn primary" onClick={add}>+ Agregar al conteo</button></div><div className="note">Guardado automático. El inventario se refleja inmediatamente en Dashboard y Contabilidad.</div><Table heads={['Producto/material','Categoría','Cantidad','Unit. C$','Unit. US$','Total C$','Total US$','Acción']} rows={items.map(x=>[x.name,x.category,x.qty,money(x.unitValue,'C$'),money(rate>0?x.unitValue/rate:0,'US$'),money(x.qty*x.unitValue,'C$'),money(rate>0?x.qty*x.unitValue/rate:0,'US$'),<button className="dangerSmall" onClick={()=>setItems(items.filter(z=>z.id!==x.id))}>Borrar</button>])}/></>}</Panel>
+ <div className="cards"><Card t="Inventario actual" v={dual(total,rate)}/><Card t="Productos/materiales" v={String(items.length)}/><Card t="Estado del mes" v={alreadyClosed?'Cerrado':'Abierto'}/></div>
+ <Panel title="▦ Historial de inventarios cerrados"><Table heads={['Mes','Fecha','Productos/materiales','Total C$','Total US$','Notas']} rows={[...closes].sort((a:InventoryClose,b:InventoryClose)=>b.month.localeCompare(a.month)).map((x:InventoryClose)=>[x.month,x.date,x.items.length,money(x.total,'C$'),money(rate>0?x.total/rate:0,'US$'),x.notes])}/></Panel></>
+}
+
+function MonthClosing({closes,setCloses,monthCloses,setMonthCloses,sales,expenses,accounts,month,rate}:any){
+ const [items,setItems]=useStore<InventoryItem[]>(`impresa-inventory-draft-${month}`,[]);
+ const [notes,setNotes]=useStore<string>(`impresa-inventory-notes-${month}`,'');
+ const total=items.reduce((a,x)=>a+x.qty*x.unitValue,0);
+ const selected=monthCloses.find((x:MonthClose)=>x.month===month);
+ const bankRows=accounts.map((a:Account)=>({name:a.name,currency:a.currency,balance:a.balance,equivalentC:a.currency==='US$'?a.balance*rate:a.balance}));
+ const bankCashC=bankRows.reduce((n:number,a:any)=>n+a.equivalentC,0);
+ const expensesC=expenses.filter((x:Expense)=>x.date.startsWith(month)).reduce((n:number,x:Expense)=>n+x.amount,0);
+ const salesC=sales.filter((x:Sale)=>x.date.startsWith(month)).reduce((n:number,x:Sale)=>n+x.amount,0);
+ const currentValueC=total+bankCashC-expensesC,baseC=4100*rate,resultC=currentValueC-baseC;
+ const closeMonth=()=>{
+  if(selected)return alert('Este mes ya fue cerrado.');
+  if(!items.length)return alert('Primero registra el inventario del mes.');
+  if(!confirm(`¿Cerrar ${month}? Esta operación guardará la fotografía contable definitiva.`))return;
+  const inv:InventoryClose={id:uid('INV'),month,date:today(),items:[...items],total,notes};
+  const snap:MonthClose={id:uid('CIERRE'),month,closedAt:today(),rate,inventoryC:total,accounts:bankRows,bankCashC,expensesC,salesC,currentValueC,baseC,resultC,notes};
+  setCloses([...closes,inv]);setMonthCloses([...monthCloses,snap]);
+  alert(`${month} cerrado correctamente. El cierre quedó guardado en el historial contable.`);
+ };
+ if(selected)return <><div className={`formula ${selected.resultC>=0?'positive':'negative'}`}><span>{selected.month} · CIERRE DEFINITIVO</span><strong>{selected.resultC>=0?'+':''}{dual(selected.resultC,selected.rate)}</strong><small>Guardado el {selected.closedAt} · Cambio C${selected.rate.toFixed(2)} = US$1</small></div><div className="cards"><Card t="Inventario final" v={dual(selected.inventoryC,selected.rate)}/><Card t="Bancos + caja" v={dual(selected.bankCashC,selected.rate)}/><Card t="Gastos" v={dual(selected.expensesC,selected.rate)}/><Card t="Ventas · registro" v={dual(selected.salesC,selected.rate)}/></div><Panel title="▦ Ejercicio del cierre"><Stat l="+ Inventario" v={dual(selected.inventoryC,selected.rate)}/><Stat l="+ Bancos / Caja" v={dual(selected.bankCashC,selected.rate)}/><Stat l="− Gastos del mes" v={dual(selected.expensesC,selected.rate)}/><Stat l="= Valor actual" v={dual(selected.currentValueC,selected.rate)}/><Stat l="− Base inicial" v={`${money(selected.baseC,'C$')} · ${money(4100,'US$')}`}/><div className={`exerciseResult ${selected.resultC>=0?'gain':'loss'}`}><span>= {selected.resultC>=0?'GANANCIA':'PÉRDIDA'}</span><strong>{dual(selected.resultC,selected.rate)}</strong></div></Panel></>;
+ return <><div className={`formula ${resultC>=0?'positive':'negative'}`}><span>{month} · PREPARACIÓN DEL CIERRE</span><strong>{resultC>=0?'+':''}{dual(resultC,rate)}</strong><small>Resultado provisional antes de cerrar el mes</small></div><div className="cards"><Card t="Inventario" v={dual(total,rate)}/><Card t="Bancos + caja" v={dual(bankCashC,rate)}/><Card t="Gastos del mes" v={dual(expensesC,rate)}/><Card t="Ventas · registro" v={dual(salesC,rate)}/></div><div className="cols"><Panel title="▦ Ejercicio contable"><Stat l="+ Inventario" v={dual(total,rate)}/><Stat l="+ Bancos / Caja" v={dual(bankCashC,rate)}/><Stat l="− Gastos del mes" v={dual(expensesC,rate)}/><Stat l="= Valor actual del negocio" v={dual(currentValueC,rate)}/><Stat l="− Base inicial histórica" v={`${money(baseC,'C$')} · ${money(4100,'US$')}`}/><div className={`exerciseResult ${resultC>=0?'gain':'loss'}`}><span>= {resultC>=0?'GANANCIA':'PÉRDIDA'}</span><strong>{dual(resultC,rate)}</strong></div></Panel><Panel title="✓ Cerrar mes"><p className="muted">Revisa los valores antes de cerrar. El cierre guarda una fotografía definitiva de inventario, bancos/caja, gastos, ventas, tipo de cambio y resultado.</p><label><span>Notas del cierre</span><textarea value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Observaciones del mes..."/></label><button className="btn primary wide" onClick={closeMonth}>Cerrar {month} y guardar cierre definitivo</button></Panel></div></>
+}
+
+function Accounting({sales,expenses,accounts,closes,monthCloses,month,rate,activeInventoryTotal}:any){
+ const last=[...closes].sort((a:InventoryClose,b:InventoryClose)=>b.month.localeCompare(a.month))[0];
+ const inventory=activeInventoryTotal>0?activeInventoryTotal:(last?.total||0);
+ const bankRows=accounts.map((a:Account)=>({name:a.name,original:money(a.balance,a.currency),nio:a.currency==='US$'?a.balance*rate:a.balance}));
+ const bankCash=bankRows.reduce((sum:number,a:any)=>sum+a.nio,0);
+ const monthExp=expenses.filter((x:Expense)=>x.date.startsWith(month)).reduce((sum:number,x:Expense)=>sum+x.amount,0);
+ const monthSales=sales.filter((x:Sale)=>x.date.startsWith(month)).reduce((sum:number,x:Sale)=>sum+x.amount,0);
+ const currentValue=inventory+bankCash-monthExp,initialNio=4100*rate,resultNio=currentValue-initialNio,resultUsd=rate>0?resultNio/rate:0;
+ const selected=monthCloses.find((x:MonthClose)=>x.month===month);
+ return <>{selected?<><div className={`formula ${selected.resultC>=0?'positive':'negative'}`}><span>{selected.month} · CERRADO · {selected.resultC>=0?'GANANCIA':'PÉRDIDA'}</span><strong>{selected.resultC>=0?'+':''}{money(selected.resultC,'C$')}</strong><div className="usdResult">{selected.resultC>=0?'+':''}{money(selected.rate>0?selected.resultC/selected.rate:0,'US$')}</div><small>Fotografía guardada el {selected.closedAt} · Cambio C${selected.rate.toFixed(2)} = US$1</small></div><div className="cards"><Card t="Inventario final" v={dual(selected.inventoryC,selected.rate)}/><Card t="Bancos + caja final" v={dual(selected.bankCashC,selected.rate)}/><Card t="Gastos del mes" v={dual(selected.expensesC,selected.rate)}/><Card t="Ventas del mes · registro" v={dual(selected.salesC,selected.rate)}/><Card t="Valor del negocio" v={dual(selected.currentValueC,selected.rate)}/><Card t="Base histórica" v={`${money(selected.baseC,'C$')} · ${money(4100,'US$')}`}/></div><div className="cols"><Panel title="Desglose del cierre"><Stat l="+ Inventario" v={dual(selected.inventoryC,selected.rate)}/><Stat l="+ Bancos / caja" v={dual(selected.bankCashC,selected.rate)}/><Stat l="− Gastos del mes" v={dual(selected.expensesC,selected.rate)}/><Stat l="= Valor actual" v={dual(selected.currentValueC,selected.rate)}/><Stat l="− Base histórica" v={dual(selected.baseC,selected.rate)}/><Stat l={selected.resultC>=0?'= GANANCIA':'= PÉRDIDA'} v={dual(selected.resultC,selected.rate)}/></Panel><Panel title="Cuentas al momento del cierre">{selected.accounts.map((a:any)=><div className="stat" key={a.name}><span>{a.name}<small>{money(a.balance,a.currency)}</small></span><b>{money(a.equivalentC,'C$')}</b></div>)}</Panel></div></>:<><div className={`formula ${resultNio>=0?'positive':'negative'}`}><span>{month} · MES ABIERTO · RESULTADO PROVISIONAL</span><strong>{resultNio>=0?'+':''}{money(resultNio,'C$')}</strong><div className="usdResult">{resultUsd>=0?'+':''}{money(resultUsd,'US$')}</div><small>Contabilidad en tiempo real: inventario, bancos/caja y gastos se reflejan automáticamente. Cerrar mes congela la fotografía histórica.</small></div><div className="cards"><Card t={activeInventoryTotal>0?"Inventario actual · provisional":"Último inventario cerrado"} v={dual(inventory,rate)}/><Card t="Bancos + caja actuales" v={dual(bankCash,rate)}/><Card t={`Gastos ${month}`} v={dual(monthExp,rate)}/><Card t={`Ventas ${month} · registro`} v={dual(monthSales,rate)}/></div></>}
+ <Panel title="▦ Ejercicio contable · resultado del negocio"><div className="accountingExercise"><Stat l="Valor actual del negocio" v={dual(currentValue,rate)}/><Stat l="− Base inicial histórica" v={`${money(initialNio,'C$')} · ${money(4100,'US$')}`}/><div className={`exerciseResult ${resultNio>=0?'gain':'loss'}`}><span>= {resultNio>=0?'GANANCIA':'PÉRDIDA'}</span><strong>{dual(resultNio,rate)}</strong></div><p className="muted">Cálculo automático: Inventario + Bancos/Caja − Gastos del mes = Valor actual. Luego, Valor actual − Base inicial US$4,100 = Ganancia/Pérdida.</p></div></Panel>
+ <Panel title="▦ Historial contable mensual"><Table heads={['Mes','Estado','Inventario','Bancos/Caja','Gastos','Valor negocio','Resultado C$','Resultado US$','Cambio']} rows={[...monthCloses].sort((a:MonthClose,b:MonthClose)=>b.month.localeCompare(a.month)).map((x:MonthClose)=>[x.month,'Cerrado',money(x.inventoryC,'C$'),money(x.bankCashC,'C$'),money(x.expensesC,'C$'),money(x.currentValueC,'C$'),`${x.resultC>=0?'+':''}${money(x.resultC,'C$')}`,`${x.resultC>=0?'+':''}${money(x.rate>0?x.resultC/x.rate:0,'US$')}`,`C$${x.rate.toFixed(2)}`])}/></Panel></>
+}
+function Quotes({quotes,setQuotes,jobs,setJobs,rate}:any){const [f,setF]=useState({client:'',description:'',amount:'',currency:'C$'});const entered=+f.amount||0,nio=toNio(entered,f.currency as 'C$'|'US$',rate);const add=()=>{if(!f.client||!entered)return;setQuotes([...quotes,{id:uid('COT'),date:today(),client:f.client,description:f.description,amount:nio,currency:f.currency as 'C$'|'US$',enteredAmount:entered,status:'Borrador'}]);setF({client:'',description:'',amount:'',currency:'C$'})};const approve=(q:Quote)=>{setQuotes(quotes.map((x:Quote)=>x.id===q.id?{...x,status:'Aprobada'}:x));if(!jobs.some((j:Job)=>j.id==='P-'+q.id))setJobs([...jobs,{id:'P-'+q.id,date:today(),client:q.client,description:q.description,stage:'Nueva'}])};return <Panel title="▧ Cotizaciones"><div className="form grid"><Input l="Cliente" v={f.client} s={v=>setF({...f,client:v})}/><Input l="Trabajo" v={f.description} s={v=>setF({...f,description:v})}/><Input l={`Total ${f.currency}`} v={f.amount} s={v=>setF({...f,amount:v})} type="number"/><Select l="Moneda" v={f.currency} s={v=>setF({...f,currency:v})} opts={['C$','US$']}/><div className="conversion"><span>Conversión automática</span><b>{dual(nio,rate)}</b></div><button className="btn primary" onClick={add}>Crear cotización</button></div><Table heads={['Nº','Cliente','Trabajo','C$','US$','Estado','Acción']} rows={quotes.slice().reverse().map((q:Quote)=>[q.id,q.client,q.description,money(q.amount,'C$'),money(rate>0?q.amount/rate:0,'US$'),q.status,<div className="actions">{q.status==='Borrador'?<button className="small" onClick={()=>approve(q)}>Aprobar → Producción</button>:null}<button className="dangerSmall" onClick={()=>{if(confirm('¿Borrar esta cotización?'))setQuotes(quotes.filter((z:Quote)=>z.id!==q.id))}}>Borrar</button></div>])}/></Panel>}
+function Production({jobs,setJobs}:any){const stages=['Nueva','Diseño','Impresión','Bordado','Lista','Entregada'];const next=(j:Job)=>{const i=stages.indexOf(j.stage);if(i<stages.length-1)setJobs(jobs.map((x:Job)=>x.id===j.id?{...x,stage:stages[i+1]}:x))};return <div className="kanban">{stages.map(s=><section key={s}><h3>{s}<b>{jobs.filter((j:Job)=>j.stage===s).length}</b></h3>{jobs.filter((j:Job)=>j.stage===s).map((j:Job)=><article key={j.id}><strong>{j.client}</strong><p>{j.description}</p>{s!=='Entregada'&&<button className="small" onClick={()=>next(j)}>Siguiente →</button>}</article>)}</section>)}</div>}
+function Clients({clients,setClients}:any){const [f,setF]=useState({name:'',phone:'',email:''});const add=()=>{if(!f.name)return;setClients([...clients,{id:uid('CLI'),...f}]);setF({name:'',phone:'',email:''})};return <Panel title="♙ Clientes"><div className="form grid"><Input l="Nombre" v={f.name} s={v=>setF({...f,name:v})}/><Input l="Teléfono" v={f.phone} s={v=>setF({...f,phone:v})}/><Input l="Correo" v={f.email} s={v=>setF({...f,email:v})}/><button className="btn primary" onClick={add}>Agregar cliente</button></div><Table heads={['Cliente','Teléfono','Correo']} rows={clients.map((x:Client)=>[x.name,x.phone,x.email])}/></Panel>}
+function Reports({sales,expenses,closes}:any){const months=Array.from(new Set([...sales.map((x:Sale)=>x.date.slice(0,7)),...expenses.map((x:Expense)=>x.date.slice(0,7)),...closes.map((x:InventoryClose)=>x.month)])).sort().reverse();return <Panel title="▥ Resumen por mes"><Table heads={['Mes','Ventas','Gastos','Diferencia','Inventario cierre']} rows={months.map((m:any)=>{const s=sales.filter((x:Sale)=>x.date.startsWith(m)).reduce((a:number,x:Sale)=>a+x.amount,0),e=expenses.filter((x:Expense)=>x.date.startsWith(m)).reduce((a:number,x:Expense)=>a+x.amount,0),i=[...closes].reverse().find((x:InventoryClose)=>x.month===m);return [m,money(s),money(e),money(s-e),money(i?.total||0)]})}/></Panel>}
+function Settings({rate,setRate}:any){const initialNio=4100*rate;return <div className="cols"><Panel title="▦ Regla del Resultado del Negocio"><div className="equation">Inventario + Bancos/Caja − Gastos = Valor actual</div><div className="equation second">Valor actual − Base histórica = Ganancia / Pérdida</div><p className="muted">Puedes registrar cada monto en C$ o US$. El sistema guarda el equivalente automáticamente usando el tipo de cambio configurado. Las ventas son solo registro y no se suman al resultado.</p></Panel><Panel title="⚙ Configuración"><Input l="Tipo de cambio: C$ por US$1" v={String(rate)} s={v=>setRate(+v||0)} type="number"/><Stat l="Capital inicial histórico" v={money(4100,'US$')}/><Stat l="Equivalente de referencia" v={money(initialNio,'C$')}/><Stat l="Moneda principal" v="C$"/></Panel></div>}
+function Card({t,v}:{t:string;v:string}){return <div className="card"><span>{t}</span><strong>{v}</strong></div>}
+function Panel({title,children}:{title:string;children:any}){return <div className="panel"><h2>{title}</h2>{children}</div>}
+function Stat({l,v}:{l:string;v:string}){return <div className="stat"><span>{l}</span><b>{v}</b></div>}
+function Input({l,v,s,type='text'}:{l:string;v:string;s:(v:string)=>void;type?:string}){return <label><span>{l}</span><input type={type} value={v} onChange={e=>s(e.target.value)}/></label>}
+function Select({l,v,s,opts}:{l:string;v:string;s:(v:string)=>void;opts:string[]}){return <label><span>{l}</span><select value={v} onChange={e=>s(e.target.value)}>{opts.map(x=><option value={x} key={x}>{x}</option>)}</select></label>}
+function Table({heads,rows}:{heads:string[];rows:any[][]}){return <div className="tablewrap"><table><thead><tr>{heads.map(x=><th key={x}>{x}</th>)}</tr></thead><tbody>{rows.map((r,i)=><tr key={i}>{r.map((x,j)=><td key={j}>{x}</td>)}</tr>)}</tbody></table></div>}
+function Empty({text='No hay registros.'}:{text?:string}){return <div className="empty">{text}</div>}
