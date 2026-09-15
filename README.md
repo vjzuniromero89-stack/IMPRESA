@@ -1,15 +1,14 @@
-# IMPRESA v2.2 — Nicaragua
+# IMPRESA v2.3 — Contabilidad
 
-Moneda principal: Córdoba nicaragüense (NIO / C$).
+Moneda operativa principal: Córdoba nicaragüense (NIO / C$).
 
-Cambios:
-- Ventas, gastos, inventario, cotizaciones y reportes se registran/muestran en C$.
-- BAC Córdobas y efectivo operativo pueden llevarse en NIO.
-- BAC Dólares u otras cuentas USD conservan su moneda real.
-- Las cuentas USD se convierten a NIO para el resumen general.
-- Capital inicial histórico: US$4,100, solo referencia.
-- Su equivalente en C$ se calcula con el tipo de cambio configurado.
-- Valor actual = último inventario + bancos/efectivo - gastos.
-- Ganancia/Pérdida = valor actual - base histórica convertida a C$.
-- El Dashboard muestra Ganancia/Pérdida tanto en C$ como en US$.
-- Las ventas son solo registro y NO participan en el cálculo del resultado.
+Incluye nueva pestaña CONTABILIDAD:
+- Resultado claramente identificado como GANANCIA o PÉRDIDA.
+- Resultado simultáneo en C$ y US$.
+- Valor actual del negocio en C$ y US$.
+- Desglose: inventario + bancos/caja - gastos.
+- Base histórica US$4,100 convertida a C$ solo para comparación.
+- Detalle de cada cuenta bancaria/caja y su equivalente en C$.
+- Cuentas USD se convierten usando el tipo de cambio configurado.
+- Ventas aparecen como información, pero NO participan en el cálculo.
+- Efectivo predeterminado ahora está en NIO.
