@@ -1,25 +1,17 @@
-# PrintControl Nicaragua
+# IMPRESA / PrintControl
 
-App web V1 para negocio de impresión y bordado en Nicaragua. Incluye dashboard responsive, estructura de ventas, clientes, inventario, compras, gastos, bancos/caja, cuentas por cobrar/pagar, contabilidad, reportes y balance inicial de US$4,100.
+Aplicación web administrativa para negocio de impresión y bordado en Nicaragua.
 
-## Stack
-- Next.js App Router + TypeScript
-- Supabase/PostgreSQL (schema incluido)
-- CSS responsive
-- NIO + USD y tipo de cambio por transacción
-- Arquitectura multiempresa
+## Módulos funcionales de esta versión
+Dashboard, Ventas, Clientes, Inventario, Gastos, Bancos y Caja, Por Cobrar, Contabilidad, Reportes y Configuración.
 
-## Ejecutar
-1. Instala Node.js 22+.
-2. `npm install`
-3. `npm run dev`
-4. Abre `http://localhost:3000`
+Los datos de esta versión se guardan en `localStorage` del navegador. La siguiente etapa debe migrar persistencia, usuarios y multiempresa a Supabase/PostgreSQL.
 
-## Supabase
-1. Crea un proyecto Supabase.
-2. Copia `.env.example` a `.env.local` y agrega URL + publishable key.
-3. Ejecuta `supabase/migrations/001_initial_schema.sql` en tu base.
-4. Antes de producción, completa las políticas RLS equivalentes para todas las tablas y conecta las pantallas a Supabase.
+## Desarrollo
+npm install
+npm run dev
 
-## Estado
-Esta entrega es una V1 funcional de interfaz/arquitectura y un esquema inicial de base de datos. Los datos del dashboard son demostrativos hasta conectar Supabase. No debe usarse como libro contable oficial sin completar validaciones, impuestos/facturación aplicables y pruebas contables.
+## Vercel
+Framework: Next.js
+Root Directory: raíz del repositorio
+Build Command: npm run build
