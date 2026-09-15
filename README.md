@@ -1,6 +1,7 @@
-# IMPRESA v2.6
-- Dashboard: eliminado el bloque grande de Ganancia/Pérdida.
-- Ganancia/Pérdida permanece en Contabilidad.
-- Botón Borrar agregado a registros operativos: ventas, gastos, cuentas/caja, líneas de inventario, cierres de inventario, cotizaciones y, donde aplica, producción/clientes.
-- Borrar un cierre mensual elimina también su fotografía contable correspondiente para evitar datos inconsistentes.
-- Las eliminaciones importantes piden confirmación.
+# IMPRESA v2.6.2
+
+- Corregido el inventario mensual: **Agregar al conteo** ahora guarda automáticamente el borrador por mes.
+- El conteo y las notas permanecen al cambiar a Dashboard, Ventas, Gastos u otra pestaña.
+- El conteo también permanece después de recargar/cerrar la página en el mismo navegador.
+- Al cerrar el mes, el borrador se limpia y se conserva el cierre definitivo en Contabilidad.
+- Corregida la carga inicial de localStorage para evitar sobrescribir registros antes de terminar la hidratación.
