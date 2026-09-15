@@ -1,9 +1,9 @@
-# IMPRESA v2.7.0
+# IMPRESA v2.8.0
 
-## Contabilidad automática
-- El inventario abierto se refleja inmediatamente en Dashboard y Contabilidad.
-- Agregar o borrar artículos recalcula el inventario activo automáticamente.
-- Bancos/caja y gastos siguen alimentando el cálculo contable automáticamente.
-- Mientras el mes está abierto, el resultado se muestra como provisional y en tiempo real.
-- Cerrar mes congela la fotografía histórica definitiva; ya no es necesario cerrar para que el inventario aparezca en Contabilidad.
-- Se conserva la persistencia del borrador mensual de inventario al cambiar de pestaña o recargar.
+- Dashboard muestra C$ y US$ en los valores financieros principales.
+- Contabilidad mantiene C$ y US$.
+- Nuevo ejercicio contable visible:
+  Valor actual del negocio − Base inicial US$4,100 = Ganancia/Pérdida.
+- El resultado se recalcula automáticamente con inventario, bancos/caja y gastos del mes.
+- El inventario abierto sigue actualizando Dashboard y Contabilidad sin necesidad de cerrar el mes.
+- Cerrar mes conserva la fotografía histórica.
