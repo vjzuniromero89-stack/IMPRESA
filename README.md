@@ -1,9 +1,9 @@
-# IMPRESA v2.6.3
+# IMPRESA v2.7.0
 
-- Corregido el inventario mensual: **Agregar al conteo** ahora guarda automáticamente el borrador por mes.
-- El conteo y las notas permanecen al cambiar a Dashboard, Ventas, Gastos u otra pestaña.
-- El conteo también permanece después de recargar/cerrar la página en el mismo navegador.
-- Al cerrar el mes, el borrador se limpia y se conserva el cierre definitivo en Contabilidad.
-- Corregida la carga inicial de localStorage para evitar sobrescribir registros antes de terminar la hidratación.
-
-- Corregido el cierre JSX del Dashboard que provocaba el error `'}' expected` durante el build de Vercel/Cloudflare.
+## Contabilidad automática
+- El inventario abierto se refleja inmediatamente en Dashboard y Contabilidad.
+- Agregar o borrar artículos recalcula el inventario activo automáticamente.
+- Bancos/caja y gastos siguen alimentando el cálculo contable automáticamente.
+- Mientras el mes está abierto, el resultado se muestra como provisional y en tiempo real.
+- Cerrar mes congela la fotografía histórica definitiva; ya no es necesario cerrar para que el inventario aparezca en Contabilidad.
+- Se conserva la persistencia del borrador mensual de inventario al cambiar de pestaña o recargar.
