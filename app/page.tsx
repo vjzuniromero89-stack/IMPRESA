@@ -1,7 +1,7 @@
 'use client';
 import {useEffect,useMemo,useState} from 'react';
 
-type Sale={id:string;date:string;client:string;description:string;amount:number;currency?:'C$'|'US$';enteredAmount?:number;status:string};
+type Sale={id:string;date:string;client:string;description:string;amount:number;currency?:'C$'|'US$';enteredAmount?:number;status:string;paid?:number;payments?:{id:string;date:string;amount:number;note:string}[];method?:string;note?:string};
 type Expense={id:string;date:string;category:string;description:string;amount:number;currency?:'C$'|'US$';enteredAmount?:number};
 type Account={id:string;name:string;currency:'C$'|'US$';balance:number;updated:string};
 type InventoryItem={id:string;name:string;category:string;qty:number;unitValue:number;currency?:'C$'|'US$';enteredUnitValue?:number};
@@ -71,7 +71,7 @@ function Dashboard({sales,expenses,accounts,closes,month,rate,activeInventoryTot
  return <><div className="cards"><Card t="Valor actual del negocio" v={dual(currentValue,rate)}/><Card t={activeInventoryTotal>0?"Inventario actual · provisional":"Último inventario"} v={dual(inventory,rate)}/><Card t="Bancos + efectivo" v={dual(bankCash,rate)}/><Card t="Gastos acumulados" v={dual(allExp,rate)}/><Card t={`Ventas ${month} (solo registro)`} v={dual(sm.reduce((a:number,x:Sale)=>a+x.amount,0),rate)}/><Card t={`Gastos ${month}`} v={dual(em.reduce((a:number,x:Expense)=>a+x.amount,0),rate)}/><Card t="Ventas acumuladas (solo registro)" v={dual(allSales,rate)}/><Card t="Mes inventario" v={last?.month||'Sin cierre'}/></div><div className="cols"><Panel title="Saldos actuales">{accounts.map((a:Account)=><Stat key={a.id} l={a.name} v={money(a.balance,a.currency)}/>)}</Panel><Panel title="Último cierre de inventario">{last?<><Stat l="Mes" v={last.month}/><Stat l="Productos/materiales" v={String(last.items.length)}/><Stat l="Valor total" v={money(last.total,'C$')}/></>:<Empty text="Todavía no has registrado un inventario mensual."/>}</Panel></div></>
 }
 function Sales({sales,setSales,month,rate}:any){
- const [f,setF]=useState({date:today(),client:'',concept:'',amount:'',paid:'',method:'Efectivo',note:''});
+ const [f,setF]=useState({date:today(),client:'',description:'',amount:'',paid:'',method:'Efectivo',note:''});
  const monthSales=sales.filter((x:Sale)=>x.date.startsWith(month));
  const paidOf=(x:Sale)=>Math.min(x.amount,Math.max(0,x.paid===undefined?x.amount:x.paid));
  const dueOf=(x:Sale)=>Math.max(0,x.amount-paidOf(x));
@@ -81,10 +81,10 @@ function Sales({sales,setSales,month,rate}:any){
  const totalDue=monthSales.reduce((n:number,x:Sale)=>n+dueOf(x),0);
  const add=()=>{
   const amount=+f.amount||0,paid=Math.max(0,Math.min(amount,+f.paid||0));
-  if(!f.client||!f.concept||amount<=0)return alert('Completa cliente, concepto y total de la venta.');
+  if(!f.client||!f.description||amount<=0)return alert('Completa cliente, concepto y total de la venta.');
   const payments=paid>0?[{id:uid('PAGO'),date:f.date,amount:paid,note:'Pago inicial'}]:[];
-  setSales([...sales,{id:uid('V'),date:f.date,client:f.client,concept:f.concept,amount,paid,payments,method:f.method,note:f.note}]);
-  setF({date:today(),client:'',concept:'',amount:'',paid:'',method:'Efectivo',note:''});
+  setSales([...sales,{id:uid('V'),date:f.date,client:f.client,description:f.description,amount,paid,payments,method:f.method,note:f.note,status:paid>=amount?'Pagado':paid>0?'Pago parcial':'Pendiente'}]);
+  setF({date:today(),client:'',description:'',amount:'',paid:'',method:'Efectivo',note:''});
  };
  const payment=(x:Sale)=>{
   const due=dueOf(x);if(due<=0)return;
@@ -92,7 +92,7 @@ function Sales({sales,setSales,month,rate}:any){
   if(v===null)return;const amt=+v;if(!amt||amt<=0)return;
   if(amt>due)return alert(`El abono no puede superar el saldo pendiente de ${money(due,'C$')}.`);
   const note=prompt('Nota del pago (opcional):','Abono')||'Abono';
-  setSales(sales.map((z:Sale)=>z.id===x.id?{...z,paid:paidOf(z)+amt,payments:[...(z.payments||[]),{id:uid('PAGO'),date:today(),amount:amt,note}]}:z));
+  setSales(sales.map((z:Sale)=>z.id===x.id?{...z,paid:paidOf(z)+amt,status:paidOf(z)+amt>=z.amount?'Pagado':'Pago parcial',payments:[...(z.payments||[]),{id:uid('PAGO'),date:today(),amount:amt,note}]}:z));
  };
  return <>
   <div className="cards salesKpis"><Card t="Ventas del mes" v={dual(totalSales,rate)}/><Card t="Dinero cobrado" v={dual(totalPaid,rate)}/><Card t="Cuentas por cobrar" v={dual(totalDue,rate)}/></div>
@@ -100,7 +100,7 @@ function Sales({sales,setSales,month,rate}:any){
    <div className="form grid">
     <Input l="Fecha" v={f.date} s={v=>setF({...f,date:v})} type="date"/>
     <Input l="Cliente" v={f.client} s={v=>setF({...f,client:v})}/>
-    <Input l="Concepto / trabajo" v={f.concept} s={v=>setF({...f,concept:v})}/>
+    <Input l="Concepto / trabajo" v={f.description} s={v=>setF({...f,description:v})}/>
     <Input l="Total de la venta C$" v={f.amount} s={v=>setF({...f,amount:v})} type="number"/>
     <Input l="Pago recibido C$" v={f.paid} s={v=>setF({...f,paid:v})} type="number"/>
     <Select l="Método del pago inicial" v={f.method} s={v=>setF({...f,method:v})} opts={['Efectivo','BAC Córdobas','BAC Dólares','Transferencia','Otro']}/>
@@ -113,11 +113,11 @@ function Sales({sales,setSales,month,rate}:any){
   <Panel title="▦ Ventas y cuentas por cobrar">
    <Table heads={['Fecha','Cliente','Concepto','Venta','Cobrado','Pendiente','Estado','Acción']} rows={[...monthSales].sort((a:Sale,b:Sale)=>b.date.localeCompare(a.date)).map((x:Sale)=>{
     const st=statusOf(x),due=dueOf(x);
-    return [x.date,x.client,x.concept,dual(x.amount,rate),dual(paidOf(x),rate),<b>{dual(due,rate)}</b>,<span className={`payStatus ${st==='PAGADO'?'paid':st==='PAGO PARCIAL'?'partial':'pending'}`}>{st}</span>,<div className="saleActions">{due>0&&<button className="btn small" onClick={()=>payment(x)}>+ Registrar abono</button>}<button className="dangerSmall" onClick={()=>{if(confirm('¿Borrar esta venta?'))setSales(sales.filter((z:Sale)=>z.id!==x.id))}}>Borrar</button></div>]
+    return [x.date,x.client,x.description,dual(x.amount,rate),dual(paidOf(x),rate),<b>{dual(due,rate)}</b>,<span className={`payStatus ${st==='PAGADO'?'paid':st==='PAGO PARCIAL'?'partial':'pending'}`}>{st}</span>,<div className="saleActions">{due>0&&<button className="btn small" onClick={()=>payment(x)}>+ Registrar abono</button>}<button className="dangerSmall" onClick={()=>{if(confirm('¿Borrar esta venta?'))setSales(sales.filter((z:Sale)=>z.id!==x.id))}}>Borrar</button></div>]
    })}/>
   </Panel>
   <Panel title="▦ Resumen de cobros pendientes">
-   {monthSales.filter((x:Sale)=>dueOf(x)>0).length===0?<div className="emptyState">No hay pagos pendientes en {month}.</div>:<div className="receivableList">{monthSales.filter((x:Sale)=>dueOf(x)>0).map((x:Sale)=><div className="receivable" key={x.id}><div><b>{x.client}</b><span>{x.concept} · Venta {money(x.amount,'C$')}</span></div><div><small>Saldo pendiente</small><strong>{dual(dueOf(x),rate)}</strong></div><button className="btn primary small" onClick={()=>payment(x)}>Registrar abono</button></div>)}</div>}
+   {monthSales.filter((x:Sale)=>dueOf(x)>0).length===0?<div className="emptyState">No hay pagos pendientes en {month}.</div>:<div className="receivableList">{monthSales.filter((x:Sale)=>dueOf(x)>0).map((x:Sale)=><div className="receivable" key={x.id}><div><b>{x.client}</b><span>{x.description} · Venta {money(x.amount,'C$')}</span></div><div><small>Saldo pendiente</small><strong>{dual(dueOf(x),rate)}</strong></div><button className="btn primary small" onClick={()=>payment(x)}>Registrar abono</button></div>)}</div>}
   </Panel>
  </>
 }
