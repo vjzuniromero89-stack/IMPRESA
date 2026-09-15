@@ -1,12 +1,15 @@
-# IMPRESA v2.1
+# IMPRESA v2.2 — Nicaragua
 
-Lógica administrativa acordada:
+Moneda principal: Córdoba nicaragüense (NIO / C$).
 
-- Capital inicial US$4,100: SOLO referencia histórica.
-- Ventas: SOLO registro/reportes; no participan en la contabilidad.
-- Inventario: se cuenta y guarda mensualmente.
-- Bancos y caja: saldos manuales (USD/NIO).
-- Valor actual = último inventario + bancos/efectivo - gastos acumulados.
-- Ganancia/Pérdida = valor actual - US$4,100.
-- Si el resultado es positivo se muestra GANANCIA; si es negativo, PÉRDIDA.
-- Cotizaciones, producción y clientes continúan disponibles sin afectar inventario automáticamente.
+Cambios:
+- Ventas, gastos, inventario, cotizaciones y reportes se registran/muestran en C$.
+- BAC Córdobas y efectivo operativo pueden llevarse en NIO.
+- BAC Dólares u otras cuentas USD conservan su moneda real.
+- Las cuentas USD se convierten a NIO para el resumen general.
+- Capital inicial histórico: US$4,100, solo referencia.
+- Su equivalente en C$ se calcula con el tipo de cambio configurado.
+- Valor actual = último inventario + bancos/efectivo - gastos.
+- Ganancia/Pérdida = valor actual - base histórica convertida a C$.
+- El Dashboard muestra Ganancia/Pérdida tanto en C$ como en US$.
+- Las ventas son solo registro y NO participan en el cálculo del resultado.
