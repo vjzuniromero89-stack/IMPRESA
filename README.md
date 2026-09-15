@@ -1,11 +1,8 @@
-# IMPRESA v3.2.0 — Ventas con pagos parciales
+# IMPRESA v3.2.1 — Corrección de compilación
 
-- Venta registra total y pago inicial por separado.
-- Estados automáticos: PAGADO, PAGO PARCIAL y PENDIENTE.
-- Saldo pendiente calculado automáticamente en C$ y US$.
-- Botón Registrar abono para pagos posteriores.
-- Historial de abonos guardado dentro de cada venta.
-- Resumen mensual: ventas, dinero cobrado y cuentas por cobrar.
-- Sección especial de cobros pendientes.
-- Las ventas antiguas sin datos de pago se consideran pagadas para mantener compatibilidad.
-- Mantiene el diseño profesional y las funciones de IMPRESA v3.1.0.
+Corrige el tipo `Sale` para el sistema de pagos parciales:
+- `paid`, `payments`, `method` y `note` ahora forman parte del tipo.
+- Se conserva `description`, `currency`, `enteredAmount` y `status` del modelo existente.
+- Nuevas ventas actualizan automáticamente su estado.
+- Los abonos actualizan el estado a Pago parcial o Pagado.
+- Mantiene todas las mejoras visuales y funcionales de v3.2.0.
