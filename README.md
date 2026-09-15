@@ -18,3 +18,6 @@ npm run dev
 Framework: Next.js
 Root Directory: raíz del repositorio
 Build Command: npm run build
+
+## v0.4
+Ventas conectadas al inventario, costo de venta y ganancia bruta por orden. Abonos de clientes, cuentas por pagar y pagos a proveedores conectados a Bancos/Caja.
