@@ -70,7 +70,57 @@ function Dashboard({sales,expenses,accounts,closes,month,rate,activeInventoryTot
  const currentValue=inventory+bankCash-monthExp;
  return <><div className="cards"><Card t="Valor actual del negocio" v={dual(currentValue,rate)}/><Card t={activeInventoryTotal>0?"Inventario actual · provisional":"Último inventario"} v={dual(inventory,rate)}/><Card t="Bancos + efectivo" v={dual(bankCash,rate)}/><Card t="Gastos acumulados" v={dual(allExp,rate)}/><Card t={`Ventas ${month} (solo registro)`} v={dual(sm.reduce((a:number,x:Sale)=>a+x.amount,0),rate)}/><Card t={`Gastos ${month}`} v={dual(em.reduce((a:number,x:Expense)=>a+x.amount,0),rate)}/><Card t="Ventas acumuladas (solo registro)" v={dual(allSales,rate)}/><Card t="Mes inventario" v={last?.month||'Sin cierre'}/></div><div className="cols"><Panel title="Saldos actuales">{accounts.map((a:Account)=><Stat key={a.id} l={a.name} v={money(a.balance,a.currency)}/>)}</Panel><Panel title="Último cierre de inventario">{last?<><Stat l="Mes" v={last.month}/><Stat l="Productos/materiales" v={String(last.items.length)}/><Stat l="Valor total" v={money(last.total,'C$')}/></>:<Empty text="Todavía no has registrado un inventario mensual."/>}</Panel></div></>
 }
-function Sales({sales,setSales,month,rate}:any){const [f,setF]=useState({date:today(),client:'',description:'',amount:'',currency:'C$',status:'Pagada'});const entered=+f.amount||0,nio=toNio(entered,f.currency as 'C$'|'US$',rate);const add=()=>{if(!f.client||!entered)return alert('Completa cliente y monto.');setSales([...sales,{id:uid('V'),date:f.date,client:f.client,description:f.description,amount:nio,currency:f.currency as 'C$'|'US$',enteredAmount:entered,status:f.status}]);setF({...f,client:'',description:'',amount:''})};return <Panel title="▣ Registro de ventas"><div className="form grid"><Input l="Fecha" v={f.date} s={v=>setF({...f,date:v})} type="date"/><Input l="Cliente" v={f.client} s={v=>setF({...f,client:v})}/><Input l="Trabajo / descripción" v={f.description} s={v=>setF({...f,description:v})}/><Input l={`Total ${f.currency}`} v={f.amount} s={v=>setF({...f,amount:v})} type="number"/><Select l="Moneda" v={f.currency} s={v=>setF({...f,currency:v})} opts={['C$','US$']}/><div className="conversion"><span>Conversión automática</span><b>{dual(nio,rate)}</b></div><Select l="Estado" v={f.status} s={v=>setF({...f,status:v})} opts={['Pagada','Pendiente','Pago parcial']}/><button className="btn primary" onClick={add}>Registrar venta</button></div><Table heads={['Fecha','Orden','Cliente','Descripción','C$','US$','Estado','Acción']} rows={sales.filter((x:Sale)=>x.date.startsWith(month)).slice().reverse().map((x:Sale)=>[x.date,x.id,x.client,x.description,money(x.amount,'C$'),money(rate>0?x.amount/rate:0,'US$'),x.status,<button className="dangerSmall" onClick={()=>{if(confirm('¿Borrar esta venta?'))setSales(sales.filter((z:Sale)=>z.id!==x.id))}}>Borrar</button>])}/></Panel>}
+function Sales({sales,setSales,month,rate}:any){
+ const [f,setF]=useState({date:today(),client:'',concept:'',amount:'',paid:'',method:'Efectivo',note:''});
+ const monthSales=sales.filter((x:Sale)=>x.date.startsWith(month));
+ const paidOf=(x:Sale)=>Math.min(x.amount,Math.max(0,x.paid===undefined?x.amount:x.paid));
+ const dueOf=(x:Sale)=>Math.max(0,x.amount-paidOf(x));
+ const statusOf=(x:Sale)=>dueOf(x)<=0?'PAGADO':paidOf(x)>0?'PAGO PARCIAL':'PENDIENTE';
+ const totalSales=monthSales.reduce((n:number,x:Sale)=>n+x.amount,0);
+ const totalPaid=monthSales.reduce((n:number,x:Sale)=>n+paidOf(x),0);
+ const totalDue=monthSales.reduce((n:number,x:Sale)=>n+dueOf(x),0);
+ const add=()=>{
+  const amount=+f.amount||0,paid=Math.max(0,Math.min(amount,+f.paid||0));
+  if(!f.client||!f.concept||amount<=0)return alert('Completa cliente, concepto y total de la venta.');
+  const payments=paid>0?[{id:uid('PAGO'),date:f.date,amount:paid,note:'Pago inicial'}]:[];
+  setSales([...sales,{id:uid('V'),date:f.date,client:f.client,concept:f.concept,amount,paid,payments,method:f.method,note:f.note}]);
+  setF({date:today(),client:'',concept:'',amount:'',paid:'',method:'Efectivo',note:''});
+ };
+ const payment=(x:Sale)=>{
+  const due=dueOf(x);if(due<=0)return;
+  const v=prompt(`Saldo pendiente de ${x.client}: ${money(due,'C$')}\nMonto del nuevo abono:`,String(due));
+  if(v===null)return;const amt=+v;if(!amt||amt<=0)return;
+  if(amt>due)return alert(`El abono no puede superar el saldo pendiente de ${money(due,'C$')}.`);
+  const note=prompt('Nota del pago (opcional):','Abono')||'Abono';
+  setSales(sales.map((z:Sale)=>z.id===x.id?{...z,paid:paidOf(z)+amt,payments:[...(z.payments||[]),{id:uid('PAGO'),date:today(),amount:amt,note}]}:z));
+ };
+ return <>
+  <div className="cards salesKpis"><Card t="Ventas del mes" v={dual(totalSales,rate)}/><Card t="Dinero cobrado" v={dual(totalPaid,rate)}/><Card t="Cuentas por cobrar" v={dual(totalDue,rate)}/></div>
+  <Panel title="▣ Registrar venta">
+   <div className="form grid">
+    <Input l="Fecha" v={f.date} s={v=>setF({...f,date:v})} type="date"/>
+    <Input l="Cliente" v={f.client} s={v=>setF({...f,client:v})}/>
+    <Input l="Concepto / trabajo" v={f.concept} s={v=>setF({...f,concept:v})}/>
+    <Input l="Total de la venta C$" v={f.amount} s={v=>setF({...f,amount:v})} type="number"/>
+    <Input l="Pago recibido C$" v={f.paid} s={v=>setF({...f,paid:v})} type="number"/>
+    <Select l="Método del pago inicial" v={f.method} s={v=>setF({...f,method:v})} opts={['Efectivo','BAC Córdobas','BAC Dólares','Transferencia','Otro']}/>
+    <Input l="Nota" v={f.note} s={v=>setF({...f,note:v})}/>
+    <div className="conversion"><span>Saldo que quedará pendiente</span><b>{dual(Math.max(0,(+f.amount||0)-Math.min(+f.amount||0,+f.paid||0)),rate)}</b></div>
+    <button className="btn primary" onClick={add}>Registrar venta</button>
+   </div>
+   <div className="note">Si el cliente no paga completo, la venta queda automáticamente como PAGO PARCIAL o PENDIENTE. Los abonos posteriores reducen el saldo.</div>
+  </Panel>
+  <Panel title="▦ Ventas y cuentas por cobrar">
+   <Table heads={['Fecha','Cliente','Concepto','Venta','Cobrado','Pendiente','Estado','Acción']} rows={[...monthSales].sort((a:Sale,b:Sale)=>b.date.localeCompare(a.date)).map((x:Sale)=>{
+    const st=statusOf(x),due=dueOf(x);
+    return [x.date,x.client,x.concept,dual(x.amount,rate),dual(paidOf(x),rate),<b>{dual(due,rate)}</b>,<span className={`payStatus ${st==='PAGADO'?'paid':st==='PAGO PARCIAL'?'partial':'pending'}`}>{st}</span>,<div className="saleActions">{due>0&&<button className="btn small" onClick={()=>payment(x)}>+ Registrar abono</button>}<button className="dangerSmall" onClick={()=>{if(confirm('¿Borrar esta venta?'))setSales(sales.filter((z:Sale)=>z.id!==x.id))}}>Borrar</button></div>]
+   })}/>
+  </Panel>
+  <Panel title="▦ Resumen de cobros pendientes">
+   {monthSales.filter((x:Sale)=>dueOf(x)>0).length===0?<div className="emptyState">No hay pagos pendientes en {month}.</div>:<div className="receivableList">{monthSales.filter((x:Sale)=>dueOf(x)>0).map((x:Sale)=><div className="receivable" key={x.id}><div><b>{x.client}</b><span>{x.concept} · Venta {money(x.amount,'C$')}</span></div><div><small>Saldo pendiente</small><strong>{dual(dueOf(x),rate)}</strong></div><button className="btn primary small" onClick={()=>payment(x)}>Registrar abono</button></div>)}</div>}
+  </Panel>
+ </>
+}
 function Expenses({expenses,setExpenses,month,rate}:any){const [f,setF]=useState({date:today(),category:'Operativo',description:'',amount:'',currency:'C$'});const entered=+f.amount||0,nio=toNio(entered,f.currency as 'C$'|'US$',rate);const add=()=>{if(!f.description||!entered)return alert('Completa descripción y monto.');setExpenses([...expenses,{id:uid('G'),date:f.date,category:f.category,description:f.description,amount:nio,currency:f.currency as 'C$'|'US$',enteredAmount:entered}]);setF({...f,description:'',amount:''})};return <Panel title="▤ Registro de gastos"><div className="form grid"><Input l="Fecha" v={f.date} s={v=>setF({...f,date:v})} type="date"/><Select l="Categoría" v={f.category} s={v=>setF({...f,category:v})} opts={['Materiales','Operativo','Servicios','Transporte','Nómina','Publicidad','Equipos','Otro']}/><Input l="Descripción" v={f.description} s={v=>setF({...f,description:v})}/><Input l={`Monto ${f.currency}`} v={f.amount} s={v=>setF({...f,amount:v})} type="number"/><Select l="Moneda" v={f.currency} s={v=>setF({...f,currency:v})} opts={['C$','US$']}/><div className="conversion"><span>Conversión automática</span><b>{dual(nio,rate)}</b></div><button className="btn primary" onClick={add}>Guardar gasto</button></div><Table heads={['Fecha','Categoría','Descripción','C$','US$','Acción']} rows={expenses.filter((x:Expense)=>x.date.startsWith(month)).slice().reverse().map((x:Expense)=>[x.date,x.category,x.description,money(x.amount,'C$'),money(rate>0?x.amount/rate:0,'US$'),<button className="dangerSmall" onClick={()=>{if(confirm('¿Borrar este gasto?'))setExpenses(expenses.filter((z:Expense)=>z.id!==x.id))}}>Borrar</button>])}/></Panel>}
 function Accounts({accounts,setAccounts,rate}:any){
  const [f,setF]=useState({name:'',currency:'C$'});
