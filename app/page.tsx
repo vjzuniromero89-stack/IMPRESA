@@ -10,7 +10,7 @@ type MonthClose={id:string;month:string;closedAt:string;rate:number;inventoryC:n
 type Client={id:string;name:string;phone:string;email:string};
 type Quote={id:string;date:string;client:string;description:string;amount:number;currency?:'C$'|'US$';enteredAmount?:number;status:string};
 type Job={id:string;date:string;client:string;description:string;stage:string};
-const tabs=['Dashboard','Ventas','Gastos','Inventario mensual','Bancos y Caja','Contabilidad','Cotizaciones','Producción','Clientes','Reportes','Configuración'];
+const tabs=['Dashboard','Ventas','Gastos','Inventario mensual','Bancos y Caja','Contabilidad','Cierre del mes','Cotizaciones','Producción','Clientes','Reportes','Configuración'];
 const uid=(p:string)=>p+'-'+Date.now().toString().slice(-8);
 const today=()=>new Date().toISOString().slice(0,10);
 const monthNow=()=>new Date().toISOString().slice(0,7);
@@ -55,7 +55,7 @@ export default function Home(){
  const activeInventoryTotal=activeInventory.reduce((n,x)=>n+x.qty*x.unitValue,0);
  const props={sales,setSales,expenses,setExpenses,accounts,setAccounts,closes,setCloses,monthCloses,setMonthCloses,clients,setClients,quotes,setQuotes,jobs,setJobs,month,rate,setRate,activeInventory,activeInventoryTotal};
  return <div className="app"><aside><div className="brand"><span className="brandMark">D</span>IMPRESA</div><div className="sub">Tu negocio en orden · Nicaragua</div><nav>{tabs.map(x=><button key={x} className={tab===x?'active':''} onClick={()=>setTab(x)}>{x}</button>)}</nav></aside><main><header><div><h1>{tab}</h1><p>Ventas · Gastos · Saldos reales · Inventario mensual</p></div><div className="actions"><label className="month"><span>Mes</span><input type="month" value={month} onChange={e=>setMonth(e.target.value)}/></label><button className="btn" onClick={()=>setTab('Gastos')}>+ Gasto</button><button className="btn primary" onClick={()=>setTab('Ventas')}>+ Venta</button></div></header>
- {tab==='Dashboard'?<Dashboard {...props}/>:tab==='Ventas'?<Sales {...props}/>:tab==='Gastos'?<Expenses {...props}/>:tab==='Inventario mensual'?<Inventory {...props}/>:tab==='Bancos y Caja'?<Accounts {...props}/>:tab==='Contabilidad'?<Accounting {...props}/>:tab==='Cotizaciones'?<Quotes {...props}/>:tab==='Producción'?<Production {...props}/>:tab==='Clientes'?<Clients {...props}/>:tab==='Reportes'?<Reports {...props}/>:<Settings {...props}/>}
+ {tab==='Dashboard'?<Dashboard {...props}/>:tab==='Ventas'?<Sales {...props}/>:tab==='Gastos'?<Expenses {...props}/>:tab==='Inventario mensual'?<Inventory {...props}/>:tab==='Bancos y Caja'?<Accounts {...props}/>:tab==='Contabilidad'?<Accounting {...props}/>:tab==='Cierre del mes'?<MonthClosing {...props}/>:tab==='Cotizaciones'?<Quotes {...props}/>:tab==='Producción'?<Production {...props}/>:tab==='Clientes'?<Clients {...props}/>:tab==='Reportes'?<Reports {...props}/>:<Settings {...props}/>}
  </main></div>
 }
 function Dashboard({sales,expenses,accounts,closes,month,rate,activeInventoryTotal}:any){
@@ -95,32 +95,40 @@ function Accounts({accounts,setAccounts,rate}:any){
   <Panel title="＋ Agregar cuenta o caja"><div className="form inline"><Input l="Nombre (ej. BAC Dólares)" v={f.name} s={v=>setF({...f,name:v})}/><Select l="Moneda" v={f.currency} s={v=>setF({...f,currency:v})} opts={['C$','US$']}/><button className="btn primary" onClick={add}>Agregar cuenta</button></div><div className="note">Tipo de cambio actual del sistema: C${rate.toFixed(2)} = US$1.00. El resumen convierte automáticamente todas las cuentas.</div></Panel>
  </>
 }
-function Inventory({closes,setCloses,monthCloses,setMonthCloses,sales,expenses,accounts,month,rate}:any){
- // El conteo abierto y las notas se guardan por mes. Cambiar de pestaña o recargar ya no los borra.
+function Inventory({closes,monthCloses,month,rate}:any){
  const [items,setItems]=useStore<InventoryItem[]>(`impresa-inventory-draft-${month}`,[]);
- const [notes,setNotes]=useStore<string>(`impresa-inventory-notes-${month}`,'');
  const [f,setF]=useState({name:'',category:'Camisas',qty:'',unitValue:'',currency:'C$'});
  const total=items.reduce((a,x)=>a+x.qty*x.unitValue,0),entered=+f.unitValue||0,unitNio=toNio(entered,f.currency as 'C$'|'US$',rate);
  const alreadyClosed=monthCloses.some((x:MonthClose)=>x.month===month);
  const add=()=>{if(alreadyClosed)return alert('Este mes ya está cerrado. Selecciona el nuevo mes.');if(!f.name||!+f.qty)return alert('Completa producto/material y cantidad.');setItems(prev=>[...prev,{id:uid('I'),name:f.name,category:f.category,qty:+f.qty,unitValue:unitNio,currency:f.currency as 'C$'|'US$',enteredUnitValue:entered}]);setF({...f,name:'',qty:'',unitValue:''})};
- const closeMonth=()=>{
-   if(alreadyClosed)return alert('Este mes ya fue cerrado.');
-   if(!items.length)return alert('Agrega al menos un producto o material al inventario.');
-   if(!confirm(`¿Cerrar ${month}? Se guardará una fotografía contable permanente del mes.`))return;
-   const bankRows=accounts.map((a:Account)=>({name:a.name,currency:a.currency,balance:a.balance,equivalentC:a.currency==='US$'?a.balance*rate:a.balance}));
-   const bankCashC=bankRows.reduce((n:number,a:any)=>n+a.equivalentC,0);
-   const expensesC=expenses.filter((x:Expense)=>x.date.startsWith(month)).reduce((n:number,x:Expense)=>n+x.amount,0);
-   const salesC=sales.filter((x:Sale)=>x.date.startsWith(month)).reduce((n:number,x:Sale)=>n+x.amount,0);
-   const currentValueC=total+bankCashC-expensesC,baseC=4100*rate,resultC=currentValueC-baseC;
-   const inv:InventoryClose={id:uid('INV'),month,date:today(),items:[...items],total,notes};
-   const snap:MonthClose={id:uid('CIERRE'),month,closedAt:today(),rate,inventoryC:total,accounts:bankRows,bankCashC,expensesC,salesC,currentValueC,baseC,resultC,notes};
-   setCloses([...closes,inv]);setMonthCloses([...monthCloses,snap]);setItems([]);setNotes('');
-   alert(`${month} cerrado y guardado en Contabilidad. Selecciona el nuevo mes para continuar.`);
- };
- return <><div className="cols"><Panel title={`◇ Inventario y cierre · ${month}`}>{alreadyClosed?<div className="closedBanner">✓ Este mes está CERRADO y guardado en Contabilidad.</div>:<><div className="form grid"><Input l="Producto / material" v={f.name} s={v=>setF({...f,name:v})}/><Select l="Categoría" v={f.category} s={v=>setF({...f,category:v})} opts={['Camisas','Hilos','Tintas','Vinil','Sublimación','Empaque','Otros']}/><Input l="Cantidad física" v={f.qty} s={v=>setF({...f,qty:v})} type="number"/><Input l={`Valor unitario ${f.currency}`} v={f.unitValue} s={v=>setF({...f,unitValue:v})} type="number"/><Select l="Moneda" v={f.currency} s={v=>setF({...f,currency:v})} opts={['C$','US$']}/><div className="conversion"><span>Valor unitario convertido</span><b>{dual(unitNio,rate)}</b></div><button className="btn" onClick={add}>+ Agregar al conteo</button></div><div className="note">Borrador guardado automáticamente para {month}. Puedes cambiar de pestaña o recargar la página sin perder el conteo.</div><Table heads={['Producto/material','Categoría','Cantidad','Unit. C$','Unit. US$','Total C$','Total US$','Acción']} rows={items.map(x=>[x.name,x.category,x.qty,money(x.unitValue,'C$'),money(rate>0?x.unitValue/rate:0,'US$'),money(x.qty*x.unitValue,'C$'),money(rate>0?x.qty*x.unitValue/rate:0,'US$'),<button className="dangerSmall" onClick={()=>setItems(items.filter(z=>z.id!==x.id))}>Borrar</button>])}/></>}</Panel>
- <Panel title="✓ Cerrar mes"><Stat l="Inventario contado" v={dual(total,rate)}/><Stat l="Ventas del mes (registro)" v={dual(sales.filter((x:Sale)=>x.date.startsWith(month)).reduce((n:number,x:Sale)=>n+x.amount,0),rate)}/><Stat l="Gastos del mes" v={dual(expenses.filter((x:Expense)=>x.date.startsWith(month)).reduce((n:number,x:Expense)=>n+x.amount,0),rate)}/><label><span>Notas del cierre</span><textarea disabled={alreadyClosed} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Observaciones del mes..."/></label><button className="btn primary wide" disabled={alreadyClosed} onClick={closeMonth}>{alreadyClosed?'Mes cerrado':'Cerrar mes y guardar en Contabilidad'}</button><p className="muted">Al cerrar, se guardan inventario, bancos/caja, gastos, ventas informativas, tipo de cambio y resultado. Bancos y caja NO se ponen en cero.</p></Panel></div>
- <Panel title="▦ Historial de inventarios cerrados"><Table heads={['Mes','Fecha','Productos/materiales','Total C$','Total US$','Notas','Acción']} rows={[...closes].sort((a:InventoryClose,b:InventoryClose)=>b.month.localeCompare(a.month)).map((x:InventoryClose)=>[x.month,x.date,x.items.length,money(x.total,'C$'),money(rate>0?x.total/rate:0,'US$'),x.notes,<button className="dangerSmall" onClick={()=>{if(confirm(`¿Borrar el cierre de ${x.month}? También se eliminará su cierre contable.`)){setCloses(closes.filter((z:InventoryClose)=>z.id!==x.id));setMonthCloses(monthCloses.filter((z:MonthClose)=>z.month!==x.month))}}}>Borrar</button>])}/></Panel></>
+ return <><Panel title={`◇ Inventario mensual · ${month}`}>{alreadyClosed?<div className="closedBanner">✓ Este mes está cerrado. Consulta el cierre en “Cierre del mes”.</div>:<><div className="form grid"><Input l="Producto / material" v={f.name} s={v=>setF({...f,name:v})}/><Select l="Categoría" v={f.category} s={v=>setF({...f,category:v})} opts={['Camisas','Hilos','Tintas','Vinil','Sublimación','Empaque','Otros']}/><Input l="Cantidad física" v={f.qty} s={v=>setF({...f,qty:v})} type="number"/><Input l={`Valor unitario ${f.currency}`} v={f.unitValue} s={v=>setF({...f,unitValue:v})} type="number"/><Select l="Moneda" v={f.currency} s={v=>setF({...f,currency:v})} opts={['C$','US$']}/><div className="conversion"><span>Valor unitario convertido</span><b>{dual(unitNio,rate)}</b></div><button className="btn primary" onClick={add}>+ Agregar al conteo</button></div><div className="note">Guardado automático. El inventario se refleja inmediatamente en Dashboard y Contabilidad.</div><Table heads={['Producto/material','Categoría','Cantidad','Unit. C$','Unit. US$','Total C$','Total US$','Acción']} rows={items.map(x=>[x.name,x.category,x.qty,money(x.unitValue,'C$'),money(rate>0?x.unitValue/rate:0,'US$'),money(x.qty*x.unitValue,'C$'),money(rate>0?x.qty*x.unitValue/rate:0,'US$'),<button className="dangerSmall" onClick={()=>setItems(items.filter(z=>z.id!==x.id))}>Borrar</button>])}/></>}</Panel>
+ <div className="cards"><Card t="Inventario actual" v={dual(total,rate)}/><Card t="Productos/materiales" v={String(items.length)}/><Card t="Estado del mes" v={alreadyClosed?'Cerrado':'Abierto'}/></div>
+ <Panel title="▦ Historial de inventarios cerrados"><Table heads={['Mes','Fecha','Productos/materiales','Total C$','Total US$','Notas']} rows={[...closes].sort((a:InventoryClose,b:InventoryClose)=>b.month.localeCompare(a.month)).map((x:InventoryClose)=>[x.month,x.date,x.items.length,money(x.total,'C$'),money(rate>0?x.total/rate:0,'US$'),x.notes])}/></Panel></>
 }
+
+function MonthClosing({closes,setCloses,monthCloses,setMonthCloses,sales,expenses,accounts,month,rate}:any){
+ const [items,setItems]=useStore<InventoryItem[]>(`impresa-inventory-draft-${month}`,[]);
+ const [notes,setNotes]=useStore<string>(`impresa-inventory-notes-${month}`,'');
+ const total=items.reduce((a,x)=>a+x.qty*x.unitValue,0);
+ const selected=monthCloses.find((x:MonthClose)=>x.month===month);
+ const bankRows=accounts.map((a:Account)=>({name:a.name,currency:a.currency,balance:a.balance,equivalentC:a.currency==='US$'?a.balance*rate:a.balance}));
+ const bankCashC=bankRows.reduce((n:number,a:any)=>n+a.equivalentC,0);
+ const expensesC=expenses.filter((x:Expense)=>x.date.startsWith(month)).reduce((n:number,x:Expense)=>n+x.amount,0);
+ const salesC=sales.filter((x:Sale)=>x.date.startsWith(month)).reduce((n:number,x:Sale)=>n+x.amount,0);
+ const currentValueC=total+bankCashC-expensesC,baseC=4100*rate,resultC=currentValueC-baseC;
+ const closeMonth=()=>{
+  if(selected)return alert('Este mes ya fue cerrado.');
+  if(!items.length)return alert('Primero registra el inventario del mes.');
+  if(!confirm(`¿Cerrar ${month}? Esta operación guardará la fotografía contable definitiva.`))return;
+  const inv:InventoryClose={id:uid('INV'),month,date:today(),items:[...items],total,notes};
+  const snap:MonthClose={id:uid('CIERRE'),month,closedAt:today(),rate,inventoryC:total,accounts:bankRows,bankCashC,expensesC,salesC,currentValueC,baseC,resultC,notes};
+  setCloses([...closes,inv]);setMonthCloses([...monthCloses,snap]);
+  alert(`${month} cerrado correctamente. El cierre quedó guardado en el historial contable.`);
+ };
+ if(selected)return <><div className={`formula ${selected.resultC>=0?'positive':'negative'}`}><span>{selected.month} · CIERRE DEFINITIVO</span><strong>{selected.resultC>=0?'+':''}{dual(selected.resultC,selected.rate)}</strong><small>Guardado el {selected.closedAt} · Cambio C${selected.rate.toFixed(2)} = US$1</small></div><div className="cards"><Card t="Inventario final" v={dual(selected.inventoryC,selected.rate)}/><Card t="Bancos + caja" v={dual(selected.bankCashC,selected.rate)}/><Card t="Gastos" v={dual(selected.expensesC,selected.rate)}/><Card t="Ventas · registro" v={dual(selected.salesC,selected.rate)}/></div><Panel title="▦ Ejercicio del cierre"><Stat l="+ Inventario" v={dual(selected.inventoryC,selected.rate)}/><Stat l="+ Bancos / Caja" v={dual(selected.bankCashC,selected.rate)}/><Stat l="− Gastos del mes" v={dual(selected.expensesC,selected.rate)}/><Stat l="= Valor actual" v={dual(selected.currentValueC,selected.rate)}/><Stat l="− Base inicial" v={`${money(selected.baseC,'C$')} · ${money(4100,'US$')}`}/><div className={`exerciseResult ${selected.resultC>=0?'gain':'loss'}`}><span>= {selected.resultC>=0?'GANANCIA':'PÉRDIDA'}</span><strong>{dual(selected.resultC,selected.rate)}</strong></div></Panel></>;
+ return <><div className={`formula ${resultC>=0?'positive':'negative'}`}><span>{month} · PREPARACIÓN DEL CIERRE</span><strong>{resultC>=0?'+':''}{dual(resultC,rate)}</strong><small>Resultado provisional antes de cerrar el mes</small></div><div className="cards"><Card t="Inventario" v={dual(total,rate)}/><Card t="Bancos + caja" v={dual(bankCashC,rate)}/><Card t="Gastos del mes" v={dual(expensesC,rate)}/><Card t="Ventas · registro" v={dual(salesC,rate)}/></div><div className="cols"><Panel title="▦ Ejercicio contable"><Stat l="+ Inventario" v={dual(total,rate)}/><Stat l="+ Bancos / Caja" v={dual(bankCashC,rate)}/><Stat l="− Gastos del mes" v={dual(expensesC,rate)}/><Stat l="= Valor actual del negocio" v={dual(currentValueC,rate)}/><Stat l="− Base inicial histórica" v={`${money(baseC,'C$')} · ${money(4100,'US$')}`}/><div className={`exerciseResult ${resultC>=0?'gain':'loss'}`}><span>= {resultC>=0?'GANANCIA':'PÉRDIDA'}</span><strong>{dual(resultC,rate)}</strong></div></Panel><Panel title="✓ Cerrar mes"><p className="muted">Revisa los valores antes de cerrar. El cierre guarda una fotografía definitiva de inventario, bancos/caja, gastos, ventas, tipo de cambio y resultado.</p><label><span>Notas del cierre</span><textarea value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Observaciones del mes..."/></label><button className="btn primary wide" onClick={closeMonth}>Cerrar {month} y guardar cierre definitivo</button></Panel></div></>
+}
+
 function Accounting({sales,expenses,accounts,closes,monthCloses,month,rate,activeInventoryTotal}:any){
  const last=[...closes].sort((a:InventoryClose,b:InventoryClose)=>b.month.localeCompare(a.month))[0];
  const inventory=activeInventoryTotal>0?activeInventoryTotal:(last?.total||0);
