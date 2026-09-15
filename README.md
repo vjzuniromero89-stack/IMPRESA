@@ -1,8 +1,11 @@
-# IMPRESA v3.1.0
+# IMPRESA v3.2.0 — Ventas con pagos parciales
 
-- Nueva pestaña independiente **Cierre del mes**, ubicada después de Contabilidad.
-- Se eliminó el cierre mensual de la pestaña Inventario.
-- Inventario queda dedicado a registrar y controlar existencias.
-- Cierre del mes muestra inventario, bancos/caja, gastos, ventas, valor actual, base inicial US$4,100 y ganancia/pérdida en C$ y US$.
-- Las notas y el botón de cierre definitivo ahora viven en Cierre del mes.
-- Contabilidad continúa actualizándose automáticamente antes del cierre.
+- Venta registra total y pago inicial por separado.
+- Estados automáticos: PAGADO, PAGO PARCIAL y PENDIENTE.
+- Saldo pendiente calculado automáticamente en C$ y US$.
+- Botón Registrar abono para pagos posteriores.
+- Historial de abonos guardado dentro de cada venta.
+- Resumen mensual: ventas, dinero cobrado y cuentas por cobrar.
+- Sección especial de cobros pendientes.
+- Las ventas antiguas sin datos de pago se consideran pagadas para mantener compatibilidad.
+- Mantiene el diseño profesional y las funciones de IMPRESA v3.1.0.
