@@ -1,18 +1,14 @@
-# IMPRESA v1.0
+# IMPRESA v2.0
+Versión simplificada según la operación real del negocio.
 
-Sistema administrativo integral para negocio de impresión y bordado en Nicaragua.
+- Capital inicial fijo: US$4,100
+- Balance administrativo: 4,100 + ventas acumuladas + saldos actuales de bancos/efectivo - gastos acumulados
+- Bancos y caja con cuentas creadas y actualizadas manualmente
+- Inventario por conteo/cierre mensual; no se descuenta por cada venta
+- Historial de cierres de inventario
+- Ventas y gastos por mes
+- Cotizaciones, producción y clientes sin afectar inventario
+- Reportes mensuales
+- Conversión de cuentas NIO a USD mediante tipo de cambio configurable
 
-Incluye Dashboard, ventas conectadas a inventario, cotizaciones, producción, clientes, proveedores, inventario por SKU/talla/color, compras con entrada automática a inventario, gastos, bancos/caja, cuentas por cobrar, cuentas por pagar, contabilidad, rentabilidad, reportes y balance inicial.
-
-El capital histórico de US$4,100 se mantiene separado del saldo disponible para evitar duplicarlo contablemente.
-
-## Importante
-Esta versión usa localStorage para funcionar inmediatamente sin credenciales externas. Para operación multiusuario, respaldo cloud y acceso desde varios dispositivos, la siguiente capa de infraestructura es Supabase/PostgreSQL.
-
-## Ejecutar
-npm install
-npm run dev
-
-## Vercel
-Root Directory: raíz del repositorio
-Build Command: npm run build
+Nota: el Balance del Negocio es una métrica administrativa personalizada y no un estado financiero formal.
