@@ -22,3 +22,20 @@ Contabilidad muestra valores en C$ y US$.
 
 ## v3.4 - Sistema de cobros
 Ventas con pago inicial, saldo pendiente, abonos, historial y cambio automatico a Pagada al llegar saldo a cero. Conserva las claves localStorage existentes.
+
+## v3.9 — Cierre definitivo con pagos por cuenta
+- El cierre del mes es ahora el último paso del período.
+- Antes de cerrar se pueden registrar múltiples pagos de deuda.
+- Cada pago exige seleccionar la cuenta de origen (BAC Dólares, BAC Córdobas, Efectivo u otra cuenta creada).
+- El sistema valida el saldo disponible de la cuenta y evita sobregiros.
+- Al confirmar el cierre, descuenta automáticamente cada pago de su cuenta real.
+- Guarda valor antes de pagos, pagos detallados, saldos finales por cuenta y cierre definitivo.
+- El cierre definitivo se convierte en la apertura del siguiente mes.
+- El primer período parte de C$0 / US$0 y no muestra una pérdida inicial artificial.
+
+## v3.10 — Capital histórico US$4,100 sin pérdida prematura
+- Mantiene US$4,100 como capital histórico/base inicial.
+- Durante la carga de Inventario + Bancos + Efectivo no muestra pérdida automática.
+- Contabilidad incorpora “Confirmar situación inicial”. Solo después de confirmar compara los activos registrados contra US$4,100.
+- Después del primer cierre, cada período usa como apertura el cierre definitivo trasladado del mes anterior.
+- Se conserva la lógica v3.9 de pagos de deuda por cuenta antes del cierre definitivo.
