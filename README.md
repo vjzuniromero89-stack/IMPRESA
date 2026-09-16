@@ -18,3 +18,7 @@ Valor del negocio = Inventario + Bancos + Efectivo.
 Ganancia/Pérdida = Valor actual - capital inicial histórico US$4,100.
 Ventas y gastos son exclusivamente registros informativos y no afectan el valor ni la ganancia/pérdida.
 Contabilidad muestra valores en C$ y US$.
+
+
+## v3.4 - Sistema de cobros
+Ventas con pago inicial, saldo pendiente, abonos, historial y cambio automatico a Pagada al llegar saldo a cero. Conserva las claves localStorage existentes.
