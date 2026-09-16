@@ -26,3 +26,12 @@ Contabilidad muestra valores en C$ y US$.
 - Ventas y Gastos son registros informativos.
 - US$4,100 es la base inicial de comparación.
 - Si el valor actual es menor, se muestra “Por debajo de la base inicial”; no se usa la fórmula antigua de pérdida desde el inicio.
+
+## v3.2 — cambios consolidados de ambos chats
+- US$4,100 vuelve a ser capital inicial histórico informativo; no genera pérdida.
+- Valor real = Inventario + Bancos + Efectivo.
+- Primer cierre establece base real y resultado C$0 / US$0.
+- Meses siguientes comparan contra el cierre anterior.
+- Ventas y gastos son solo registros.
+- Inventario se registra automáticamente al pulsar Agregar al conteo; eliminado Guardar inventario.
+- Eliminados Producción, Clientes y Cotizaciones.
