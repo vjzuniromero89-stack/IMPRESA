@@ -6,3 +6,6 @@ Rediseño profesional sobre la base v2.8, preservando los registros y claves loc
 - C$ / US$ y tipo de cambio se mantienen.
 - Ventas continúan como registro informativo según la regla definida.
 - Se preservan Ventas, Gastos, Inventario, Cierre del mes, Bancos/Caja, Cotizaciones, Producción, Clientes, Reportes, Configuración y opciones de borrar.
+
+## v3.0.1 — corrección de inventario
+Se corrigió el guardado persistente de localStorage, la recarga del inventario por mes y la lectura inmediata del inventario guardado desde Dashboard y Contabilidad.
