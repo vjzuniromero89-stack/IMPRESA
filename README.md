@@ -18,3 +18,11 @@ Valor del negocio = Inventario + Bancos + Efectivo.
 Ganancia/Pérdida = Valor actual - capital inicial histórico US$4,100.
 Ventas y gastos son exclusivamente registros informativos y no afectan el valor ni la ganancia/pérdida.
 Contabilidad muestra valores en C$ y US$.
+
+## v3.1.3 — base limpia acumulativa
+- Eliminados Producción, Clientes y Cotizaciones.
+- Se conserva un solo círculo de progreso en Dashboard.
+- Fórmula bloqueada: Inventario + Bancos + Efectivo = valor actual.
+- Ventas y Gastos son registros informativos.
+- US$4,100 es la base inicial de comparación.
+- Si el valor actual es menor, se muestra “Por debajo de la base inicial”; no se usa la fórmula antigua de pérdida desde el inicio.
