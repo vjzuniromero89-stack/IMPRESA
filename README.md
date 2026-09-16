@@ -9,3 +9,6 @@ Rediseño profesional sobre la base v2.8, preservando los registros y claves loc
 
 ## v3.0.1 — corrección de inventario
 Se corrigió el guardado persistente de localStorage, la recarga del inventario por mes y la lectura inmediata del inventario guardado desde Dashboard y Contabilidad.
+
+## v3.0.2 — Dashboard doble moneda
+Todos los valores monetarios del Dashboard muestran C$ y US$: patrimonio, bancos/caja, inventario, ventas, gastos, evolución, distribución de gastos y saldos por cuenta.
