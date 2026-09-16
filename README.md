@@ -12,3 +12,9 @@ Se corrigió el guardado persistente de localStorage, la recarga del inventario 
 
 ## v3.0.2 — Dashboard doble moneda
 Todos los valores monetarios del Dashboard muestran C$ y US$: patrimonio, bancos/caja, inventario, ventas, gastos, evolución, distribución de gastos y saldos por cuenta.
+
+## v3.1 — Regla financiera definitiva
+Valor del negocio = Inventario + Bancos + Efectivo.
+Ganancia/Pérdida = Valor actual - capital inicial histórico US$4,100.
+Ventas y gastos son exclusivamente registros informativos y no afectan el valor ni la ganancia/pérdida.
+Contabilidad muestra valores en C$ y US$.
