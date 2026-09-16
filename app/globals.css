@@ -5,3 +5,12 @@
 tr.salePending td{background:#fff4df;border-bottom-color:#f1d79e}
 tr.salePending td:first-child{box-shadow:inset 4px 0 0 #d89a22}
 tr.salePending:hover td{background:#ffefcc}
+
+/* v3.6: acciones de ventas siempre alineadas en una sola fila */
+.actions{flex-wrap:nowrap;align-items:center;white-space:nowrap}
+td .actions{display:flex;width:max-content;min-width:max-content;gap:6px;align-items:center;flex-wrap:nowrap}
+td .actions .small,td .actions .dangerSmall{margin-top:0;flex:0 0 auto;white-space:nowrap}
+td:last-child{white-space:nowrap;min-width:205px}
+.salePending td{background:#fff8df}
+.salePending td:first-child{box-shadow:inset 3px 0 0 #d99b16}
+@media(max-width:720px){td .actions{width:max-content}.tablewrap{overflow-x:auto;-webkit-overflow-scrolling:touch}.actions{width:auto}}
