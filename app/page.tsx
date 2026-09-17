@@ -2,7 +2,7 @@
 import {useEffect,useMemo,useRef,useState} from 'react';
 
 type Payment={id:string;date:string;amount:number;note?:string};
-type Sale={id:string;date:string;client:string;description:string;amount:number;currency?:'C$'|'US$';enteredAmount?:number;status:string;paidAmount?:number;payments?:Payment[];paid?:number;payments?:{id:string;date:string;amount:number;currency:'C$'|'US$';enteredAmount:number}[]};
+type Sale={id:string;date:string;client:string;description:string;amount:number;currency?:'C$'|'US$';enteredAmount?:number;status:string;paidAmount?:number;payments?:Payment[]};
 type Expense={id:string;date:string;category:string;description:string;amount:number;currency?:'C$'|'US$';enteredAmount?:number};
 type Account={id:string;name:string;currency:'C$'|'US$';balance:number;updated:string};
 type InventoryItem={id:string;name:string;category:string;qty:number;unitValue:number;currency?:'C$'|'US$';enteredUnitValue?:number};
