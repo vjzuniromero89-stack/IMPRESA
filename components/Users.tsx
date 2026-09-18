@@ -6,6 +6,7 @@ import type { AppUser, ActivityEntry, BusinessUserRole } from '../lib/db';
 const ACTION_LABEL: Record<string, string> = {
   created: 'Agregó', updated: 'Editó', deleted: 'Eliminó', payment: 'Abono', closed: 'Cierre'
 };
+const ROLE_LABEL: Record<BusinessUserRole, string> = { admin: 'Administrativo', usuario: 'Usuario' };
 
 function fmtWhen(iso: string) {
   try {
@@ -14,13 +15,14 @@ function fmtWhen(iso: string) {
   } catch { return iso; }
 }
 
-export default function Users({ businessId, currentUser, setCurrentUser }: { businessId: string | null; currentUser: AppUser | null; setCurrentUser: (u: AppUser) => void }) {
+export default function Users({ businessId, currentUser }: { businessId: string | null; currentUser: AppUser | null }) {
   const [users, setUsers] = useState<AppUser[]>([]);
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [f, setF] = useState({ name: '', role: 'empleado' as BusinessUserRole });
+  const [f, setF] = useState({ username: '', password: '', confirmPassword: '', role: 'usuario' as BusinessUserRole });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ type: 'error' | 'info'; text: string } | null>(null);
+  const isAdmin = currentUser?.role === 'admin';
 
   const reload = () => {
     if (!businessId) return;
@@ -34,59 +36,60 @@ export default function Users({ businessId, currentUser, setCurrentUser }: { bus
 
   const createUser = async () => {
     if (!businessId) return;
+    if (f.password !== f.confirmPassword) { setMsg({ type: 'error', text: 'Las contraseñas no coinciden.' }); return; }
     setBusy(true); setMsg(null);
     try {
-      const created = await addAppUser(businessId, f.name, f.role);
-      setMsg({ type: 'info', text: `Usuario "${created.name}" creado.` });
-      setF({ name: '', role: 'empleado' });
+      const created = await addAppUser(businessId, f.username, f.password, f.role);
+      setMsg({ type: 'info', text: `Usuario "${created.username}" creado.` });
+      setF({ username: '', password: '', confirmPassword: '', role: 'usuario' });
       reload();
-      setCurrentUser(created);
     } catch (err: any) {
       setMsg({ type: 'error', text: err?.message || 'No se pudo crear el usuario.' });
     } finally { setBusy(false); }
   };
 
   const remove = async (u: AppUser) => {
-    if (!confirm(`¿Borrar el usuario "${u.name}"?`)) return;
+    if (!confirm(`¿Borrar el usuario "${u.username}"? Ya no podrá iniciar sesión.`)) return;
     try { await removeAppUser(u.id); reload(); } catch (err) { console.error(err); alert('No se pudo borrar el usuario.'); }
   };
 
   return (
     <>
       <div className="panel">
-        <h2>¿Quién eres?</h2>
-        <p className="muted">No hace falta contraseña. Elige tu nombre en la lista para que lo que registres quede anotado con tu nombre, o créate uno abajo si todavía no apareces.</p>
+        <h2>Usuarios del negocio</h2>
+        {currentUser && <p className="muted">Conectado como <b>{currentUser.username}</b> · {ROLE_LABEL[currentUser.role]}.</p>}
         <div className="tablewrap">
           <table>
-            <thead><tr><th>Usuario</th><th>Rol</th><th>Alta</th><th>Acción</th></tr></thead>
+            <thead><tr><th>Usuario</th><th>Rol</th><th>Alta</th>{isAdmin && <th>Acción</th>}</tr></thead>
             <tbody>
               {users.map(u => (
                 <tr key={u.id}>
-                  <td>{u.name}{currentUser?.id === u.id ? ' (tú)' : ''}</td>
-                  <td>{u.role === 'owner' ? 'Dueño' : 'Empleado'}</td>
+                  <td>{u.username}{currentUser?.id === u.id ? ' (tú)' : ''}</td>
+                  <td>{ROLE_LABEL[u.role]}</td>
                   <td>{u.createdAt}</td>
-                  <td className="actions">
-                    <button className="small" disabled={currentUser?.id === u.id} onClick={() => setCurrentUser(u)}>Usar este</button>
-                    <button className="dangerSmall" onClick={() => remove(u)}>Borrar</button>
-                  </td>
+                  {isAdmin && <td><button className="dangerSmall" onClick={() => remove(u)}>Borrar</button></td>}
                 </tr>
               ))}
-              {!loading && !users.length && <tr><td colSpan={4}>No hay usuarios todavía. Crea el primero abajo.</td></tr>}
+              {!loading && !users.length && <tr><td colSpan={isAdmin ? 4 : 3}>No hay usuarios todavía.</td></tr>}
             </tbody>
           </table>
         </div>
       </div>
 
-      <div className="panel">
-        <h2>Crear usuario</h2>
-        <p className="muted">Solo el nombre y el rol, sin contraseña. Sirve para anotar quién hizo cada cosa en el registro de actividad de abajo.</p>
-        <div className="form grid">
-          <label><span>Nombre</span><input type="text" value={f.name} onChange={e => setF({ ...f, name: e.target.value })} placeholder="ej. María" /></label>
-          <label><span>Rol</span><select value={f.role} onChange={e => setF({ ...f, role: e.target.value as BusinessUserRole })}><option value="empleado">Empleado</option><option value="owner">Dueño</option></select></label>
-          <button className="btn primary" disabled={busy} onClick={createUser}>{busy ? 'Creando…' : '+ Crear usuario'}</button>
+      {isAdmin && (
+        <div className="panel">
+          <h2>Crear usuario</h2>
+          <p className="muted">Crea un usuario y contraseña para un empleado o para otro Administrativo. Cada cambio que haga queda anotado abajo con su nombre de usuario.</p>
+          <div className="form grid">
+            <label><span>Usuario nuevo</span><input type="text" autoCapitalize="none" autoCorrect="off" value={f.username} onChange={e => setF({ ...f, username: e.target.value })} placeholder="ej. maria" /></label>
+            <label><span>Contraseña</span><input type="password" value={f.password} onChange={e => setF({ ...f, password: e.target.value })} placeholder="mínimo 6 caracteres" /></label>
+            <label><span>Confirmar contraseña</span><input type="password" value={f.confirmPassword} onChange={e => setF({ ...f, confirmPassword: e.target.value })} placeholder="repite la contraseña" /></label>
+            <label><span>Rol</span><select value={f.role} onChange={e => setF({ ...f, role: e.target.value as BusinessUserRole })}><option value="usuario">Usuario</option><option value="admin">Administrativo</option></select></label>
+            <button className="btn primary" disabled={busy} onClick={createUser}>{busy ? 'Creando…' : '+ Crear usuario'}</button>
+          </div>
+          {msg && <div className={msg.type === 'error' ? 'authMsg error' : 'authMsg'}>{msg.text}</div>}
         </div>
-        {msg && <div className={msg.type === 'error' ? 'authMsg error' : 'authMsg'}>{msg.text}</div>}
-      </div>
+      )}
 
       <div className="panel">
         <h2>Actividad reciente</h2>
