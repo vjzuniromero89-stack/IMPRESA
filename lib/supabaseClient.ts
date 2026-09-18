@@ -17,3 +17,12 @@ export const supabaseConfigured = !!(url && anonKey);
 export const supabase = supabaseConfigured
   ? createClient(url, anonKey, { auth: { persistSession: true, autoRefreshToken: true } })
   : (null as any);
+
+// Cliente "de un solo uso", sin sesión persistente. Se usa para crear
+// usuarios nuevos (pestaña Usuarios) sin reemplazar la sesión de quien
+// ya inició sesión — createClient()+signUp() normalmente activa la sesión
+// del usuario recién creado, y eso desconectaría al dueño que lo está
+// creando. Con persistSession:false esto no pasa.
+export function createAuthClient() {
+  return createClient(url, anonKey, { auth: { persistSession: false, autoRefreshToken: false } });
+}

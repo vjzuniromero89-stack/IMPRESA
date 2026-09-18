@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { supabase } from './supabaseClient';
+import { supabase, createAuthClient } from './supabaseClient';
 
 // ---------- Tipos (iguales a los que usaba la app con localStorage) ----------
 export type Currency = 'C$' | 'US$';
@@ -14,14 +14,38 @@ export type DebtPayment = { id: string; accountId: string; accountName: string; 
 export type MonthClose = { id: string; month: string; closedAt: string; rate: number; inventoryC: number; accounts: { name: string; currency: Currency; balance: number; equivalentC: number }[]; bankCashC: number; expensesC: number; salesC: number; currentValueC: number; baseC: number; resultC: number; notes: string; openingC?: number; debtPaymentsC?: number; carryForwardC?: number; debtNotes?: string; preCloseC?: number; debtPaymentDetails?: DebtPayment[] };
 export type Quote = { id: string; date: string; client: string; description: string; amount: number; currency?: Currency; enteredAmount?: number; status: string };
 export type InitialBase = { confirmed: boolean; baseUSD: number; baseC: number; confirmedAt?: string };
+export type BusinessUserRole = 'owner' | 'empleado';
+export type BusinessUser = { userId: string; username: string; role: BusinessUserRole; createdAt: string };
+export type ActivityEntry = { id: string; username: string; action: string; entity: string; description: string; at: string };
+export type LogInfo = { userId?: string; username?: string };
 
 export const uid = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'id-' + Date.now() + '-' + Math.random().toString(16).slice(2));
 const toDbCurrency = (c?: Currency) => (c === 'US$' ? 'USD' : 'NIO');
 const fromDbCurrency = (c: string): Currency => (c === 'USD' ? 'US$' : 'C$');
 const dateOnly = (v?: string | null) => (v ? String(v).slice(0, 10) : '');
+const fmt = (n: number) => 'C$' + (Math.round((Number(n) || 0) * 100) / 100).toFixed(2);
+
+// ---------- Usuario y contraseña (sin correo real) ----------
+// Supabase Auth solo trabaja con "correo", así que cada usuario se guarda
+// internamente como <usuario>@impresa.local. La persona nunca ve ni escribe
+// ese correo falso, solo su usuario y contraseña.
+const USERNAME_DOMAIN = 'impresa.local';
+export function normalizeUsername(raw: string): string {
+  return (raw || '').trim();
+}
+export function usernameSlug(raw: string): string {
+  return normalizeUsername(raw).toLowerCase().replace(/[^a-z0-9_.-]/g, '');
+}
+export function usernameToEmail(raw: string): string {
+  const slug = usernameSlug(raw);
+  return slug ? `${slug}@${USERNAME_DOMAIN}` : '';
+}
+export function emailToUsername(email?: string | null): string {
+  return (email || '').split('@')[0] || '';
+}
 
 // ---------- Arranque de sesión: negocio + cuentas por defecto ----------
-export async function ensureBusiness(userId: string): Promise<string> {
+export async function ensureBusiness(userId: string, email?: string | null): Promise<string> {
   const { data: existing, error: e1 } = await supabase.from('business_users').select('business_id').eq('user_id', userId).limit(1).maybeSingle();
   if (e1) throw e1;
   if (existing) return existing.business_id as string;
@@ -33,7 +57,7 @@ export async function ensureBusiness(userId: string): Promise<string> {
   const businessId = uid();
   const { error: e2 } = await supabase.from('businesses').insert({ id: businessId, name: 'IMPRESA', country: 'Nicaragua', base_currency: 'NIO', initial_capital_usd: 4100, exchange_rate: 37 });
   if (e2) throw e2;
-  const { error: e3 } = await supabase.from('business_users').insert({ business_id: businessId, user_id: userId, role: 'owner' });
+  const { error: e3 } = await supabase.from('business_users').insert({ business_id: businessId, user_id: userId, role: 'owner', username: emailToUsername(email) });
   if (e3) throw e3;
   const { error: e4 } = await supabase.from('financial_accounts').insert([
     { business_id: businessId, name: 'BAC Dólares', type: 'bank', currency: 'USD', balance: 0 },
@@ -42,6 +66,58 @@ export async function ensureBusiness(userId: string): Promise<string> {
   ]);
   if (e4) throw e4;
   return businessId;
+}
+
+// ---------- Usuarios del negocio (pestaña "Usuarios") ----------
+export async function fetchMyMembership(businessId: string, userId: string): Promise<{ username: string; role: BusinessUserRole }> {
+  const { data, error } = await supabase.from('business_users').select('username, role').eq('business_id', businessId).eq('user_id', userId).maybeSingle();
+  if (error) throw error;
+  return { username: data?.username || '', role: (data?.role as BusinessUserRole) || 'empleado' };
+}
+
+export async function listBusinessUsers(businessId: string): Promise<BusinessUser[]> {
+  const { data, error } = await supabase.from('business_users').select('user_id, username, role, created_at').eq('business_id', businessId).order('created_at', { ascending: true });
+  if (error) throw error;
+  return (data || []).map((r: any) => ({ userId: r.user_id, username: r.username || '(sin nombre)', role: (r.role as BusinessUserRole) || 'empleado', createdAt: dateOnly(r.created_at) }));
+}
+
+// Crea un usuario nuevo (usuario + contraseña) y lo agrega al MISMO negocio.
+// Usa un cliente aparte (sin sesión persistente) para que crear el usuario
+// no reemplace la sesión de quien ya está conectado (el dueño).
+export async function createBusinessUser(businessId: string, rawUsername: string, password: string, role: BusinessUserRole): Promise<BusinessUser> {
+  const slug = usernameSlug(rawUsername);
+  if (slug.length < 3) throw new Error('El usuario debe tener al menos 3 letras o números.');
+  if (!password || password.length < 6) throw new Error('La contraseña debe tener al menos 6 caracteres.');
+  const email = usernameToEmail(rawUsername);
+  const temp = createAuthClient();
+  const { data, error } = await temp.auth.signUp({ email, password });
+  if (error) {
+    if (/registered|exists/i.test(error.message)) throw new Error('Ese usuario ya existe. Elige otro.');
+    throw error;
+  }
+  const newUserId = data.user?.id;
+  if (!newUserId) throw new Error('No se pudo crear el usuario. Revisa que "Confirm email" esté DESACTIVADO en Supabase (Authentication → Sign In / Providers → Email).');
+  const { error: e2 } = await supabase.from('business_users').insert({ business_id: businessId, user_id: newUserId, role, username: slug });
+  if (e2) throw e2;
+  return { userId: newUserId, username: slug, role, createdAt: dateOnly(new Date().toISOString()) };
+}
+
+// ---------- Registro de actividad ----------
+export async function logActivity(businessId: string | null, userId: string | undefined, username: string, action: string, entity: string, description: string) {
+  if (!businessId) return;
+  try {
+    const { error } = await supabase.from('activity_log').insert({ business_id: businessId, user_id: userId || null, username: username || '', action, entity, description });
+    if (error) throw error;
+  } catch (err) {
+    // El registro de actividad nunca debe romper la operación principal.
+    console.error('IMPRESA: no se pudo registrar la actividad', err);
+  }
+}
+
+export async function listActivity(businessId: string): Promise<ActivityEntry[]> {
+  const { data, error } = await supabase.from('activity_log').select('*').eq('business_id', businessId).order('created_at', { ascending: false }).limit(200);
+  if (error) throw error;
+  return (data || []).map((r: any) => ({ id: r.id, username: r.username || '—', action: r.action, entity: r.entity || '', description: r.description, at: r.created_at }));
 }
 
 export async function fetchBusinessSettings(businessId: string): Promise<{ rate: number; initialBase: InitialBase }> {
@@ -187,7 +263,8 @@ function useCloudCollection<T extends { id: string }>(
   load: (businessId: string) => Promise<T[]>,
   table: string,
   toRow: (businessId: string, item: T) => any,
-  onAfterUpsert?: (businessId: string, item: T, old: T | undefined) => Promise<void>
+  onAfterUpsert?: (businessId: string, item: T, old: T | undefined) => Promise<void>,
+  logInfo?: LogInfo & { label: string }
 ) {
   const [items, setItems] = useState<T[]>([]);
   const [ready, setReady] = useState(false);
@@ -216,11 +293,16 @@ function useCloudCollection<T extends { id: string }>(
     setItems(resolved);
     if (!businessId) return;
     (async () => {
-      if (toDelete.length) { const { error } = await supabase.from(table).delete().in('id', toDelete); if (error) throw error; }
+      if (toDelete.length) {
+        const { error } = await supabase.from(table).delete().in('id', toDelete);
+        if (error) throw error;
+        if (logInfo) for (const _id of toDelete) await logActivity(businessId, logInfo.userId, logInfo.username || '', 'deleted', table, `Eliminó ${logInfo.label}`);
+      }
       for (const { item, old } of toUpsert) {
         const { error } = await supabase.from(table).upsert(toRow(businessId, item));
         if (error) throw error;
         if (onAfterUpsert) await onAfterUpsert(businessId, item, old);
+        if (logInfo) await logActivity(businessId, logInfo.userId, logInfo.username || '', old ? 'updated' : 'created', table, `${old ? 'Editó' : 'Agregó'} ${logInfo.label}`);
       }
     })().catch(err => { console.error('IMPRESA: no se pudo guardar en ' + table, err); alert('No se pudo guardar el cambio en la nube. Revisa tu conexión e inténtalo de nuevo.'); });
   };
@@ -228,26 +310,29 @@ function useCloudCollection<T extends { id: string }>(
   return [items, setValue, ready] as const;
 }
 
-export function useSalesCloud(businessId: string | null, rate: number) {
+export function useSalesCloud(businessId: string | null, rate: number, logInfo?: LogInfo) {
   return useCloudCollection<Sale>(businessId, loadSales, 'sales', (b, s) => saleToRow(b, rate, s), async (b, item, old) => {
     const oldPayments = old?.payments || [];
     const newPayments = item.payments || [];
     if (newPayments.length > oldPayments.length) {
       const oldIds = new Set(oldPayments.map(p => p.id));
-      for (const p of newPayments) if (!oldIds.has(p.id)) await addSalePaymentRemote(item.id, p);
+      for (const p of newPayments) if (!oldIds.has(p.id)) {
+        await addSalePaymentRemote(item.id, p);
+        if (logInfo) await logActivity(b, logInfo.userId, logInfo.username || '', 'payment', 'sales', `Registró un abono de ${fmt(p.amount)} a una venta`);
+      }
     }
-  });
+  }, logInfo ? { label: 'una venta', ...logInfo } : undefined);
 }
-export function useExpensesCloud(businessId: string | null, rate: number) {
-  return useCloudCollection<Expense>(businessId, loadExpenses, 'expenses', (b, e) => expenseToRow(b, rate, e));
+export function useExpensesCloud(businessId: string | null, rate: number, logInfo?: LogInfo) {
+  return useCloudCollection<Expense>(businessId, loadExpenses, 'expenses', (b, e) => expenseToRow(b, rate, e), undefined, logInfo ? { label: 'un gasto', ...logInfo } : undefined);
 }
-export function useAccountsCloud(businessId: string | null) {
-  return useCloudCollection<Account>(businessId, loadAccounts, 'financial_accounts', accountToRow);
+export function useAccountsCloud(businessId: string | null, logInfo?: LogInfo) {
+  return useCloudCollection<Account>(businessId, loadAccounts, 'financial_accounts', accountToRow, undefined, logInfo ? { label: 'una cuenta', ...logInfo } : undefined);
 }
-export function useQuotesCloud(businessId: string | null, rate: number) {
-  return useCloudCollection<Quote>(businessId, loadQuotes, 'quotes', (b, q) => quoteToRow(b, rate, q));
+export function useQuotesCloud(businessId: string | null, rate: number, logInfo?: LogInfo) {
+  return useCloudCollection<Quote>(businessId, loadQuotes, 'quotes', (b, q) => quoteToRow(b, rate, q), undefined, logInfo ? { label: 'una cotización', ...logInfo } : undefined);
 }
-export function useMonthClosesCloud(businessId: string | null) {
+export function useMonthClosesCloud(businessId: string | null, logInfo?: LogInfo) {
   // Los cierres solo se agregan, nunca se editan ni se borran desde la app,
   // así que no necesitan el diffing genérico: solo cargar + insertar.
   const [items, setItems] = useState<MonthClose[]>([]);
@@ -260,6 +345,10 @@ export function useMonthClosesCloud(businessId: string | null) {
       .catch(err => { console.error('IMPRESA: no se pudo cargar month_closes', err); if (!cancelled) setReady(true); });
     return () => { cancelled = true };
   }, [businessId]);
-  const addClose = async (mc: MonthClose) => { await addMonthCloseRemote(businessId as string, mc); setItems(prev => [...prev, mc]); };
+  const addClose = async (mc: MonthClose) => {
+    await addMonthCloseRemote(businessId as string, mc);
+    setItems(prev => [...prev, mc]);
+    if (logInfo) await logActivity(businessId, logInfo.userId, logInfo.username || '', 'closed', 'month_closes', `Cerró el mes de ${mc.month}`);
+  };
   return [items, addClose, ready] as const;
 }
