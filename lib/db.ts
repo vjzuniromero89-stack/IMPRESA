@@ -30,10 +30,33 @@ const fmt = (n: number) => 'C$' + (Math.round((Number(n) || 0) * 100) / 100).toF
 // ---------- Arranque: negocio + cuentas por defecto (sin inicio de sesión) ----------
 // Ya no hay usuario ni contraseña: la app trabaja siempre con UN solo
 // negocio. Si no existe todavía, se crea la primera vez que alguien entra.
+//
+// Importante: una vez resuelto, el id del negocio se guarda en este
+// navegador (localStorage) y se reutiliza siempre. Antes, cada carga de
+// página volvía a preguntarle a Supabase "¿cuál es el negocio más
+// antiguo?" — si por cualquier motivo llegó a haber más de una fila en
+// "businesses" (por ejemplo de pruebas viejas), esa pregunta podía
+// contestarse distinto en cargas distintas y la app terminaba mostrando
+// (o guardando) los datos de un negocio diferente cada vez, dando la
+// sensación de que algo recién guardado "se borraba" al refrescar.
+// Guardar el id una sola vez y reutilizarlo evita ese problema de raíz.
+const BUSINESS_ID_KEY = 'impresa_business_id';
+
 export async function ensureBusiness(): Promise<string> {
-  const { data: existing, error: e1 } = await supabase.from('businesses').select('id').order('created_at', { ascending: true }).limit(1).maybeSingle();
+  let cached: string | null = null;
+  try { cached = localStorage.getItem(BUSINESS_ID_KEY); } catch {}
+  if (cached) {
+    const { data, error } = await supabase.from('businesses').select('id').eq('id', cached).maybeSingle();
+    if (!error && data) return cached;
+    // El id guardado ya no existe (se borró en Supabase): se resuelve de nuevo abajo.
+  }
+  const { data: existing, error: e1 } = await supabase.from('businesses').select('id').order('created_at', { ascending: true }).order('id', { ascending: true }).limit(1).maybeSingle();
   if (e1) throw e1;
-  if (existing) return existing.id as string;
+  if (existing) {
+    const id = existing.id as string;
+    try { localStorage.setItem(BUSINESS_ID_KEY, id); } catch {}
+    return id;
+  }
   const businessId = uid();
   const { error: e2 } = await supabase.from('businesses').insert({ id: businessId, name: 'IMPRESA', country: 'Nicaragua', base_currency: 'NIO', initial_capital_usd: 4100, exchange_rate: 37 });
   if (e2) throw e2;
@@ -43,6 +66,7 @@ export async function ensureBusiness(): Promise<string> {
     { business_id: businessId, name: 'Efectivo', type: 'cash', currency: 'NIO', balance: 0 }
   ]);
   if (e4) throw e4;
+  try { localStorage.setItem(BUSINESS_ID_KEY, businessId); } catch {}
   return businessId;
 }
 
