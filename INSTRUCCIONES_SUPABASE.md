@@ -1,20 +1,37 @@
 # Conectar IMPRESA a Supabase (pasos que haces tú)
 
-Ya dejé la app programada para usar Supabase de verdad, con inicio de sesión.
-Estos son los pasos que solo tú puedes hacer porque son tus cuentas.
+Ya dejé la app programada para usar Supabase de verdad, con inicio de sesión
+por **usuario y contraseña** (no correo) y una pestaña de **Usuarios** donde
+puedes crear cuentas para tus empleados. Estos son los pasos que solo tú
+puedes hacer porque son tus cuentas.
 
-## 1. Corre la migración 002 en Supabase
+## 1. Corre las migraciones 002 y 003 en Supabase
 
 1. Entra a tu proyecto **impresa** en supabase.com → **SQL Editor**.
 2. Abre el archivo `migration/002_app_sync_and_rls_fix.sql` de este zip, copia
-   todo su contenido y pégalo en una consulta nueva.
-3. Dale **Run**. Debe decir "Success".
+   todo su contenido, pégalo en una consulta nueva y dale **Run**. Debe decir
+   "Success". (Si ya la corriste antes, puedes correrla otra vez sin
+   problema — está hecha para no duplicar nada.)
+3. Haz lo mismo con `migration/003_username_login_and_activity_log.sql`
+   (nueva): ábrela, copia todo, pégala en otra consulta nueva y **Run**.
 
-Esto agrega las columnas que faltaban (cliente en ventas, abonos,
-cotizaciones, etc.) y — muy importante — corrige los permisos de seguridad
-(RLS). La migración anterior (001) dejó casi todas las tablas sin ninguna
-política de acceso, así que aunque conectáramos la app, Supabase iba a negar
-todo por defecto. Ya quedó arreglado en el archivo 002.
+La 002 agrega las columnas que faltaban (cliente en ventas, abonos,
+cotizaciones, etc.) y corrige los permisos de seguridad (RLS) — la
+migración 001 había dejado casi todas las tablas sin ninguna política de
+acceso. La 003 agrega el nombre de usuario, el permiso para que el dueño
+cree otros usuarios, y la tabla donde se guarda el registro de actividad.
+
+## 1.1 Muy importante: desactiva "Confirm email"
+
+Como ahora se usa usuario/contraseña, por dentro cada usuario se guarda con
+un correo inventado (por ejemplo `victor@impresa.local`) que nunca va a
+poder recibir un correo real. Si Supabase pide "confirmar el correo" antes
+de dejar entrar a alguien, esa cuenta se quedaría trabada para siempre.
+
+Para evitarlo: en Supabase → **Authentication** → **Sign In / Providers** →
+**Email** → apaga **"Confirm email"**. Este paso es obligatorio (no
+opcional) para que crear cuentas funcione, tanto la tuya como las que crees
+para tus empleados desde la pestaña Usuarios.
 
 ## 2. Saca tus llaves de conexión y ponlas en Cloudflare
 
@@ -54,26 +71,30 @@ Estas variables se necesitan al momento de compilar la app (no solo en
 tiempo de ejecución), así que después de agregarlas vas a necesitar volver a
 desplegar (el siguiente paso ya lo hace).
 
-## 4. Sube el código y vuelve a desplegar
+## 3. Sube el código y vuelve a desplegar
 
 1. Reemplaza el contenido de tu repo de GitHub con el de este zip (como
    siempre haces).
 2. Cloudflare debería disparar un nuevo deploy solo. Si no, dispáralo manual
    desde el panel de Cloudflare para que tome las variables de entorno nuevas.
 
-## 5. Crea tu cuenta y pruébala
+## 4. Crea tu cuenta y pruébala
 
-1. Abre `impresa.vjzuniromero89.workers.dev`. Ahora debe pedirte iniciar
+1. Antes de este paso, confirma que ya desactivaste "Confirm email" (paso
+   1.1) — si no, la cuenta se crea pero se queda trabada sin poder entrar.
+2. Abre `impresa.vjzuniromero89.workers.dev`. Ahora debe pedirte iniciar
    sesión.
-2. Dale **"¿No tienes cuenta? Créala aquí"**, pon tu correo y una contraseña.
-3. Por defecto, Supabase pide confirmar el correo antes de dejarte entrar.
-   Si no quieres ese paso extra (para una app que solo usas tú), puedes
-   desactivarlo: en Supabase → **Authentication** → **Sign In / Providers** →
-   **Email** → apaga **"Confirm email"**. Si lo dejas activado, revisa tu
-   correo y haz clic en el enlace de confirmación antes de intentar entrar.
+3. Dale **"¿No tienes cuenta? Créala aquí"**, elige un usuario (por ejemplo
+   `victor`) y una contraseña. Esta primera cuenta que creas queda como
+   **dueño** del negocio.
 4. Ya adentro, registra una venta de prueba desde tu PC.
-5. Abre la misma URL desde tu celular, inicia sesión con el **mismo correo y
+5. Abre la misma URL desde tu celular, inicia sesión con el **mismo usuario y
    contraseña**, y confirma que la venta aparece ahí también.
+6. Si quieres que un empleado también use la app con su propio usuario, ve a
+   la pestaña **Usuarios** dentro de la app (no en Supabase) y créalo ahí:
+   usuario, contraseña y rol. No necesita correo ni pasar por Supabase.
+   Cada cosa que ese usuario agregue, edite o borre va a quedar anotada en
+   esa misma pestaña, con su nombre y la hora.
 
 ## Importante: tus datos actuales no se mueven solos
 
@@ -89,10 +110,17 @@ exportarlos desde el navegador donde están y subirlos a Supabase.
 - Cada pantalla (Ventas, Gastos, Inventario, Banco y Efectivo, Cierre de
   mes, Cotizaciones) ahora lee y guarda directamente en Supabase en vez de
   en el navegador.
-- Se agregó inicio de sesión con correo y contraseña (Supabase Auth). La
-  primera vez que alguien inicia sesión, la app le crea su negocio
-  automáticamente.
+- Se agregó inicio de sesión con usuario y contraseña (Supabase Auth por
+  dentro, con un correo interno inventado que la persona nunca ve). La
+  primera vez que alguien crea la primera cuenta, la app le crea su negocio
+  automáticamente y queda como dueño.
+- Nueva pestaña **Usuarios**: el dueño puede crear más usuarios (por
+  ejemplo empleados) dentro del mismo negocio, sin tocar Supabase.
+- Nuevo registro de actividad (tabla `activity_log`): cada vez que alguien
+  agrega, edita o borra algo, queda anotado quién fue y qué hizo, visible
+  en la pestaña Usuarios.
 - Se agregaron tablas nuevas: `sale_payments` (historial de abonos),
-  `quotes` (cotizaciones), `inventory_month_notes`.
-- Se corrigieron las políticas de seguridad (RLS) que faltaban en la
-  migración 001.
+  `quotes` (cotizaciones), `inventory_month_notes`, `activity_log`.
+- Se corrigieron/ampliaron las políticas de seguridad (RLS) que faltaban en
+  la migración 001, y se agregó la que permite al dueño crear usuarios
+  dentro de su negocio (migración 003).

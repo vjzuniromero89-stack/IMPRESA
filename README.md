@@ -52,3 +52,9 @@ Ventas con pago inicial, saldo pendiente, abonos, historial y cambio automatico 
 ## v3.13.1 — Compatibilidad con el asistente de Cloudflare/Supabase
 - La app ahora acepta también el nombre `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (el que usa el asistente nuevo de Cloudflare), además de `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
 - `INSTRUCCIONES_SUPABASE.md` se actualizó explicando dónde pegar exactamente las llaves que muestra ese asistente.
+
+## v3.14 — Usuario y contraseña (sin correo) + pestaña Usuarios
+- Iniciar sesión y crear cuenta ahora piden **usuario y contraseña**, no correo. Por dentro se sigue usando Supabase Auth (que exige un "correo"), pero es un correo interno inventado a partir del usuario y la persona nunca lo ve ni lo escribe.
+- Nueva pestaña **Usuarios**: el dueño puede crear más usuarios (por ejemplo, para sus empleados) directamente desde la app, sin volver a entrar a Supabase.
+- Toda acción de agregar, editar o borrar (ventas, gastos, cuentas, inventario, cotizaciones, cierres de mes) ahora queda anotada en un registro de actividad, visible en la pestaña Usuarios, con quién la hizo y cuándo.
+- Requiere correr `migration/003_username_login_and_activity_log.sql` y, muy importante, **desactivar "Confirm email"** en Supabase (Authentication → Sign In / Providers → Email) — ver `INSTRUCCIONES_SUPABASE.md`.
