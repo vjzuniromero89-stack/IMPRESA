@@ -64,3 +64,14 @@ Ventas con pago inicial, saldo pendiente, abonos, historial y cambio automatico 
 - Se puede registrar cuánto se había pagado antes de usar esta pestaña ("Ya pagado antes").
 - En **Cierre de mes**, el formulario "Pagos y ajustes antes del cierre" ahora deja elegir a cuál deuda pertenece cada pago. Al cerrar el mes, ese pago se descuenta automáticamente del restante de la deuda y aparece en su historial.
 - Requiere correr `migration/004_debts.sql`.
+
+## v3.15.1 — Un solo botón para entrar (sin pantalla de "Crear cuenta")
+- Se quitó la pantalla/enlace separado de "Crear cuenta". Ahora solo hay un campo de usuario, uno de contraseña y un botón **Entrar**.
+- Si ese usuario no existe todavía, la cuenta se crea sola al primer intento (queda como dueño). Si ya existe, simplemente inicia sesión.
+- La pestaña Usuarios sigue siendo el lugar para crear cuentas adicionales (por ejemplo empleados) una vez que ya estás adentro.
+
+## v3.16.0 — Se quitó el inicio de sesión por completo
+- Ya no se pide usuario ni contraseña para entrar: la app abre directo en el Dashboard. Cualquier persona con el link puede ver y modificar los datos del negocio.
+- Se quitó Supabase Auth por dentro (ya no crea cuentas ni sesiones); las tablas ahora se leen/escriben con la llave pública/anon, así que hace falta correr `migration/005_open_access.sql` para abrir los permisos (RLS).
+- La pestaña **Usuarios** cambió: ya no se crean cuentas con contraseña. Ahora es una lista simple de nombres (sin contraseña) — cada quien elige "Usar este" para que lo que registre quede anotado con su nombre en el historial de actividad, o crea uno nuevo con solo su nombre y su rol.
+- Ver `INSTRUCCIONES_SUPABASE.md` para el paso de la migración 005 y el aviso de seguridad importante que trae este cambio.
