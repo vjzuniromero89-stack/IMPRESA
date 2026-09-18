@@ -1,10 +1,12 @@
 'use client';
 import {useEffect,useState} from 'react';
-import {supabase,supabaseConfigured} from '../lib/supabaseClient';
+import {supabaseConfigured} from '../lib/supabaseClient';
 import Auth from '../components/Auth';
 import Users from '../components/Users';
-import type {Payment,Sale,Expense,Account,InventoryItem,InventoryClose,DebtPayment,MonthClose,Quote,InitialBase,BusinessUserRole,Debt,DebtPaymentRecord} from '../lib/db';
-import {uid,ensureBusiness,fetchBusinessSettings,updateRateRemote,confirmInitialBaseRemote,useSalesCloud,useExpensesCloud,useAccountsCloud,useQuotesCloud,useMonthClosesCloud,useDebtsCloud,loadInventory,addInventoryItemRemote,deleteInventoryItemRemote,deleteInventoryMonthRemote,fetchMyMembership,logActivity,loadDebtPayments,addDebtPaymentRemote} from '../lib/db';
+import type {Payment,Sale,Expense,Account,InventoryItem,InventoryClose,DebtPayment,MonthClose,Quote,InitialBase,AppUser,Debt,DebtPaymentRecord} from '../lib/db';
+import {uid,ensureBusiness,fetchBusinessSettings,updateRateRemote,confirmInitialBaseRemote,useSalesCloud,useExpensesCloud,useAccountsCloud,useQuotesCloud,useMonthClosesCloud,useDebtsCloud,loadInventory,addInventoryItemRemote,deleteInventoryItemRemote,deleteInventoryMonthRemote,logActivity,loadDebtPayments,addDebtPaymentRemote} from '../lib/db';
+
+const CURRENT_USER_KEY='impresa_current_user';
 
 const tabs=['Dashboard','Ventas','Gastos','Inventario','Banco y Efectivo','Contabilidad','Cierre de mes','Deudas','Cotizaciones','Usuarios','Reportes','Configuración'];
 const today=()=>new Date().toISOString().slice(0,10);
@@ -15,8 +17,6 @@ const toNio=(amount:number,currency:'C$'|'US$',rate:number)=>currency==='US$'?am
 const fromNio=(nio:number,currency:'C$'|'US$'|undefined,rate:number)=>currency==='US$'?(rate>0?nio/rate:0):nio;
 
 export default function Home(){
- const [authReady,setAuthReady]=useState(false);
- const [session,setSession]=useState<any>(null);
  const [businessId,setBusinessId]=useState<string|null>(null);
  const [bootError,setBootError]=useState('');
  const [settingsReady,setSettingsReady]=useState(false);
@@ -24,22 +24,21 @@ export default function Home(){
  const [rate,setRateLocal]=useState(37);
  const [initialBase,setInitialBaseLocal]=useState<InitialBase>({confirmed:false,baseUSD:4100,baseC:0});
 
+ // Sin inicio de sesión: la app entra directo. Solo se recuerda, en este
+ // navegador, cuál "usuario" (nombre) eligió la persona en la pestaña
+ // Usuarios, para anotarlo en el registro de actividad.
+ const [currentUser,setCurrentUserState]=useState<AppUser|null>(null);
  useEffect(()=>{
-  if(!supabaseConfigured){setAuthReady(true);return}
-  supabase.auth.getSession().then(({data}:any)=>{setSession(data.session);setAuthReady(true)});
-  const {data:sub}=supabase.auth.onAuthStateChange((_e:any,sess:any)=>{setSession(sess);if(!sess){setBusinessId(null);setSettingsReady(false)}});
-  return ()=>{sub.subscription.unsubscribe()}
+  try{const raw=localStorage.getItem(CURRENT_USER_KEY);if(raw)setCurrentUserState(JSON.parse(raw))}catch{}
  },[]);
-
- const [myUsername,setMyUsername]=useState('');
- const [myRole,setMyRole]=useState<BusinessUserRole>('empleado');
+ const setCurrentUser=(u:AppUser)=>{setCurrentUserState(u);try{localStorage.setItem(CURRENT_USER_KEY,JSON.stringify(u))}catch{}};
 
  useEffect(()=>{
-  if(!session?.user)return;
+  if(!supabaseConfigured)return;
   let cancelled=false;
-  ensureBusiness(session.user.id,session.user.email).then(id=>{if(!cancelled)setBusinessId(id)}).catch(err=>{console.error('IMPRESA: no se pudo preparar el negocio',err);if(!cancelled)setBootError(err?.message||'No se pudo preparar tu negocio.')});
+  ensureBusiness().then(id=>{if(!cancelled)setBusinessId(id)}).catch(err=>{console.error('IMPRESA: no se pudo preparar el negocio',err);if(!cancelled)setBootError(err?.message||'No se pudo preparar tu negocio.')});
   return ()=>{cancelled=true}
- },[session?.user?.id]);
+ },[]);
 
  useEffect(()=>{
   if(!businessId)return;
@@ -48,17 +47,10 @@ export default function Home(){
   return ()=>{cancelled=true}
  },[businessId]);
 
- useEffect(()=>{
-  if(!businessId||!session?.user?.id)return;
-  let cancelled=false;
-  fetchMyMembership(businessId,session.user.id).then(m=>{if(!cancelled){setMyUsername(m.username);setMyRole(m.role)}}).catch(err=>console.error('IMPRESA: no se pudo cargar el usuario',err));
-  return ()=>{cancelled=true}
- },[businessId,session?.user?.id]);
-
  const setRate=(v:number)=>{setRateLocal(v);if(businessId)updateRateRemote(businessId,v).catch(err=>{console.error(err);alert('No se pudo guardar el tipo de cambio en la nube.')})};
  const setInitialBase=(v:InitialBase)=>{setInitialBaseLocal(v);if(businessId&&v.confirmed)confirmInitialBaseRemote(businessId,v.baseC).catch(err=>{console.error(err);alert('No se pudo confirmar la situación inicial en la nube.')})};
 
- const logCtx={userId:session?.user?.id,username:myUsername};
+ const logCtx={userId:currentUser?.id,username:currentUser?.name||''};
  const [sales,setSales]=useSalesCloud(businessId,rate,logCtx);
  const [expenses,setExpenses]=useExpensesCloud(businessId,rate,logCtx);
  const [accounts,setAccounts]=useAccountsCloud(businessId,logCtx);
@@ -83,16 +75,14 @@ export default function Home(){
  },[businessId]);
  const reloadDebtPayments=()=>{if(businessId)loadDebtPayments(businessId).then(setDebtPaymentsLocal).catch(err=>console.error(err))};
 
- const props={sales,setSales,expenses,setExpenses,accounts,setAccounts,closes,businessId,reloadInventory,monthCloses,addMonthClose,initialBase,setInitialBase,quotes,setQuotes,debts,setDebts,debtPayments,reloadDebtPayments,month,rate,setRate,logCtx,myUserId:session?.user?.id,myUsername,myRole};
+ const props={sales,setSales,expenses,setExpenses,accounts,setAccounts,closes,businessId,reloadInventory,monthCloses,addMonthClose,initialBase,setInitialBase,quotes,setQuotes,debts,setDebts,debtPayments,reloadDebtPayments,month,rate,setRate,logCtx};
 
- if(!authReady)return <div className="loadingScreen">Cargando IMPRESA…</div>;
  if(!supabaseConfigured)return <Auth/>;
- if(!session)return <Auth/>;
  if(bootError)return <div className="loadingScreen">{bootError}</div>;
  if(!businessId||!settingsReady)return <div className="loadingScreen">Preparando tu negocio…</div>;
 
- return <div className="app"><aside><div className="brandWrap"><div className="brandMark">I</div><div><div className="brand">IMPRESA</div><div className="sub">Business Management</div></div></div><div className="workspace">OPERACIONES · NICARAGUA</div><nav>{tabs.map(x=><button key={x} className={tab===x?'active':''} onClick={()=>setTab(x)}>{x}</button>)}</nav>{supabaseConfigured&&session&&<div className="sessionFooter"><small>{myUsername||session.user.email}</small><button className="small" onClick={()=>supabase.auth.signOut()}>Cerrar sesión</button></div>}</aside><main><header><div><div className="eyebrow">IMPRESA / {month}</div><h1>{tab}</h1><p>Centro administrativo y financiero del negocio</p></div><div className="actions"><label className="month"><span>Mes</span><input type="month" value={month} onChange={e=>setMonth(e.target.value)}/></label><button className="btn" onClick={()=>setTab('Gastos')}>+ Gasto</button><button className="btn primary" onClick={()=>setTab('Ventas')}>+ Venta</button></div></header>
- {tab==='Dashboard'?<Dashboard {...props}/>:tab==='Ventas'?<Sales {...props}/>:tab==='Gastos'?<Expenses {...props}/>:tab==='Inventario'?<Inventory {...props}/>:tab==='Banco y Efectivo'?<Accounts {...props}/>:tab==='Contabilidad'?<Accounting {...props}/>:tab==='Cierre de mes'?<MonthClosing {...props}/>:tab==='Deudas'?<Debts {...props}/>:tab==='Cotizaciones'?<Quotes {...props}/>:tab==='Usuarios'?<Users businessId={businessId} myUserId={session?.user?.id} myUsername={myUsername} myRole={myRole}/>:tab==='Reportes'?<Reports {...props}/>:<Settings {...props}/>}
+ return <div className="app"><aside><div className="brandWrap"><div className="brandMark">I</div><div><div className="brand">IMPRESA</div><div className="sub">Business Management</div></div></div><div className="workspace">OPERACIONES · NICARAGUA</div><nav>{tabs.map(x=><button key={x} className={tab===x?'active':''} onClick={()=>setTab(x)}>{x}</button>)}</nav><div className="sessionFooter"><small>{currentUser?currentUser.name:'Sin usuario elegido'}</small><button className="small" onClick={()=>setTab('Usuarios')}>{currentUser?'Cambiar':'Elegir usuario'}</button></div></aside><main><header><div><div className="eyebrow">IMPRESA / {month}</div><h1>{tab}</h1><p>Centro administrativo y financiero del negocio</p></div><div className="actions"><label className="month"><span>Mes</span><input type="month" value={month} onChange={e=>setMonth(e.target.value)}/></label><button className="btn" onClick={()=>setTab('Gastos')}>+ Gasto</button><button className="btn primary" onClick={()=>setTab('Ventas')}>+ Venta</button></div></header>
+ {tab==='Dashboard'?<Dashboard {...props}/>:tab==='Ventas'?<Sales {...props}/>:tab==='Gastos'?<Expenses {...props}/>:tab==='Inventario'?<Inventory {...props}/>:tab==='Banco y Efectivo'?<Accounts {...props}/>:tab==='Contabilidad'?<Accounting {...props}/>:tab==='Cierre de mes'?<MonthClosing {...props}/>:tab==='Deudas'?<Debts {...props}/>:tab==='Cotizaciones'?<Quotes {...props}/>:tab==='Usuarios'?<Users businessId={businessId} currentUser={currentUser} setCurrentUser={setCurrentUser}/>:tab==='Reportes'?<Reports {...props}/>:<Settings {...props}/>}
  </main></div>
 }
 function Dashboard({sales,expenses,accounts,closes,monthCloses,month,rate}:any){
