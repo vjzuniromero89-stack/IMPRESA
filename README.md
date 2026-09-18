@@ -39,3 +39,12 @@ Ventas con pago inicial, saldo pendiente, abonos, historial y cambio automatico 
 - Contabilidad incorpora “Confirmar situación inicial”. Solo después de confirmar compara los activos registrados contra US$4,100.
 - Después del primer cierre, cada período usa como apertura el cierre definitivo trasladado del mes anterior.
 - Se conserva la lógica v3.9 de pagos de deuda por cuenta antes del cierre definitivo.
+
+## v3.12 — Tema oscuro y moneda integrada en cada casilla
+- Toda la interfaz pasa a fondo negro con texto blanco; cada panel/tarjeta queda con sombra propia.
+- Las casillas de dinero (Ventas, Gastos, Inventario, Cotizaciones) integran el selector C$/US$ al final del mismo cuadro, por defecto en C$.
+
+## v3.13 — Conexión real a Supabase con inicio de sesión
+- La app deja de guardar solo en `localStorage` y pasa a leer/escribir en Supabase, para que los datos se vean iguales en cualquier dispositivo.
+- Se agrega inicio de sesión (correo y contraseña). La primera vez que alguien entra, la app crea su negocio automáticamente.
+- Ver `INSTRUCCIONES_SUPABASE.md` para los pasos de configuración (migración 002, llaves de Supabase, variables de entorno en Cloudflare).
