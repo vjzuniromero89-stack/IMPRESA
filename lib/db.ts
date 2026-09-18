@@ -10,7 +10,9 @@ export type Expense = { id: string; date: string; category: string; description:
 export type Account = { id: string; name: string; currency: Currency; balance: number; updated: string };
 export type InventoryItem = { id: string; name: string; category: string; qty: number; unitValue: number; currency?: Currency; enteredUnitValue?: number };
 export type InventoryClose = { id: string; month: string; date: string; items: InventoryItem[]; total: number; notes: string };
-export type DebtPayment = { id: string; accountId: string; accountName: string; currency: Currency; amount: number; equivalentC: number; note: string };
+export type DebtPayment = { id: string; accountId: string; accountName: string; currency: Currency; amount: number; equivalentC: number; note: string; debtId?: string; debtDescription?: string };
+export type Debt = { id: string; description: string; totalAmount: number; currency?: Currency; enteredTotal?: number; affectsPercent: boolean; createdAt: string };
+export type DebtPaymentRecord = { id: string; debtId: string; month?: string; accountId?: string; accountName?: string; currency: Currency; amount: number; equivalentC: number; note?: string; at: string };
 export type MonthClose = { id: string; month: string; closedAt: string; rate: number; inventoryC: number; accounts: { name: string; currency: Currency; balance: number; equivalentC: number }[]; bankCashC: number; expensesC: number; salesC: number; currentValueC: number; baseC: number; resultC: number; notes: string; openingC?: number; debtPaymentsC?: number; carryForwardC?: number; debtNotes?: string; preCloseC?: number; debtPaymentDetails?: DebtPayment[] };
 export type Quote = { id: string; date: string; client: string; description: string; amount: number; currency?: Currency; enteredAmount?: number; status: string };
 export type InitialBase = { confirmed: boolean; baseUSD: number; baseC: number; confirmedAt?: string };
@@ -186,6 +188,31 @@ function quoteToRow(businessId: string, rate: number, q: Quote) {
   return { id: q.id, business_id: businessId, client: q.client, description: q.description, amount: q.amount, currency: toDbCurrency(q.currency), exchange_rate: rate, entered_amount: q.enteredAmount ?? null, status: q.status, quote_date: q.date };
 }
 
+async function loadDebts(businessId: string): Promise<Debt[]> {
+  const { data, error } = await supabase.from('debts').select('*').eq('business_id', businessId).order('created_at', { ascending: true });
+  if (error) throw error;
+  return (data || []).map((r: any) => ({ id: r.id, description: r.description || '', totalAmount: Number(r.total_amount) || 0, currency: fromDbCurrency(r.currency), enteredTotal: r.entered_total != null ? Number(r.entered_total) : undefined, affectsPercent: !!r.affects_percent, createdAt: dateOnly(r.created_at) }));
+}
+function debtToRow(businessId: string, rate: number, d: Debt) {
+  return { id: d.id, business_id: businessId, description: d.description, total_amount: d.totalAmount, currency: toDbCurrency(d.currency), exchange_rate: rate, entered_total: d.enteredTotal ?? null, affects_percent: d.affectsPercent };
+}
+
+// Pagos hechos a una deuda (uno inicial al crearla y luego uno por cada
+// pago que se registre en Cierre de mes vinculado a esa deuda).
+export async function addDebtPaymentRemote(businessId: string, debtId: string, payment: { id: string; accountId?: string | null; accountName?: string | null; currency: Currency; amount: number; equivalentC: number; note?: string; month?: string }) {
+  const { error } = await supabase.from('debt_payments').insert({
+    id: payment.id, debt_id: debtId, business_id: businessId, month: payment.month || null,
+    account_id: payment.accountId || null, account_name: payment.accountName || null,
+    currency: toDbCurrency(payment.currency), amount: payment.amount, equivalent_cordobas: payment.equivalentC, note: payment.note || null
+  });
+  if (error) throw error;
+}
+export async function loadDebtPayments(businessId: string): Promise<DebtPaymentRecord[]> {
+  const { data, error } = await supabase.from('debt_payments').select('*').eq('business_id', businessId).order('paid_at', { ascending: true });
+  if (error) throw error;
+  return (data || []).map((r: any) => ({ id: r.id, debtId: r.debt_id, month: r.month || undefined, accountId: r.account_id || undefined, accountName: r.account_name || undefined, currency: fromDbCurrency(r.currency), amount: Number(r.amount) || 0, equivalentC: Number(r.equivalent_cordobas) || 0, note: r.note || undefined, at: r.paid_at }));
+}
+
 async function loadMonthCloses(businessId: string): Promise<MonthClose[]> {
   const { data, error } = await supabase.from('month_closes').select('*').eq('business_id', businessId);
   if (error) throw error;
@@ -331,6 +358,9 @@ export function useAccountsCloud(businessId: string | null, logInfo?: LogInfo) {
 }
 export function useQuotesCloud(businessId: string | null, rate: number, logInfo?: LogInfo) {
   return useCloudCollection<Quote>(businessId, loadQuotes, 'quotes', (b, q) => quoteToRow(b, rate, q), undefined, logInfo ? { label: 'una cotización', ...logInfo } : undefined);
+}
+export function useDebtsCloud(businessId: string | null, rate: number, logInfo?: LogInfo) {
+  return useCloudCollection<Debt>(businessId, loadDebts, 'debts', (b, d) => debtToRow(b, rate, d), undefined, logInfo ? { label: 'una deuda', ...logInfo } : undefined);
 }
 export function useMonthClosesCloud(businessId: string | null, logInfo?: LogInfo) {
   // Los cierres solo se agregan, nunca se editan ni se borran desde la app,
