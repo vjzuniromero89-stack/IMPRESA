@@ -1,37 +1,45 @@
 # Conectar IMPRESA a Supabase (pasos que haces tú)
 
-Por tu pedido, la app **ya no pide usuario ni contraseña para entrar**. Se
-abre directo en el Dashboard. Estos son los pasos que solo tú puedes hacer
-porque son tus cuentas (Supabase y Cloudflare).
+La app vuelve a pedir **usuario y contraseña** para entrar, con dos roles:
+**Administrativo** y **Usuario**. Estos son los pasos que solo tú puedes
+hacer porque son tus cuentas (Supabase y Cloudflare).
 
-## ⚠️ Muy importante: qué significa "sin inicio de sesión"
+## ⚠️ Qué tan protegido queda esto
 
-Al quitar el login, **cualquier persona que tenga el link de la app**
-(`impresa.vjzuniromero89.workers.dev`) puede entrar, ver y modificar tus
-ventas, gastos, cuentas bancarias, deudas y todo lo demás — sin que se le
-pida ninguna contraseña. Ya no hay forma de saber, desde la app, quién
-entró si no elige su nombre en la pestaña Usuarios (y nada le obliga a
-elegir el correcto).
-
-Si más adelante cambias de opinión y quieres recuperar la protección con
-contraseña, dímelo y lo regreso.
+La contraseña nunca se guarda en texto plano: el navegador la convierte en
+un "hash" (una huella que no se puede revertir) antes de mandarla a
+Supabase. Pero las tablas de la base de datos siguen abiertas por dentro
+(sin sesión de Supabase) — la pantalla de usuario/contraseña vive en la
+app, no en la base de datos. En la práctica eso significa: alguien que
+solo tiene el link de la app no puede entrar sin la contraseña correcta;
+pero alguien técnico que consiga la llave pública de tu proyecto de
+Supabase podría, en teoría, leer directamente esas tablas sin pasar por el
+login. Es un nivel de protección razonable para el día a día, no una
+bóveda bancaria. Si más adelante quieres una protección más fuerte
+(sesión real del lado de Supabase), dímelo y lo ajustamos.
 
 ## 1. Corre las migraciones en Supabase
 
 1. Entra a tu proyecto **impresa** en supabase.com → **SQL Editor**.
-2. Si todavía no las has corrido de una sesión anterior, corre en orden
-   `migration/002_app_sync_and_rls_fix.sql`, `migration/003_username_login_and_activity_log.sql`
-   y `migration/004_debts.sql` (cada una: ábrela, copia todo su contenido,
-   pégalo en una consulta nueva y dale **Run**. Están hechas para no
-   duplicar nada si ya las habías corrido).
-3. Ahora corre la nueva **`migration/005_open_access.sql`**: ábrela, copia
+2. Corre en orden, cada una en una consulta nueva con **Run** (ábrela, copia
+   todo su contenido, pégalo, Run): `migration/002_app_sync_and_rls_fix.sql`,
+   `migration/003_username_login_and_activity_log.sql`,
+   `migration/004_debts.sql` y `migration/005_open_access.sql`. Todas están
+   hechas para no duplicar nada si ya las habías corrido antes — correrlas
+   de nuevo no hace daño.
+3. Ahora corre la nueva **`migration/006_user_login.sql`**: ábrela, copia
    todo su contenido, pégalo en una consulta nueva y dale **Run**. Debe
-   decir "Success". Esta es la migración que quita el requisito de haber
-   iniciado sesión para leer/escribir los datos, y crea la nueva lista de
-   "Usuarios" (sin contraseña) que usa la pestaña Usuarios.
+   decir "Success" al final. Esta es la que agrega usuario/contraseña de
+   verdad a la pestaña Usuarios.
 
-Ya **no hace falta** desactivar "Confirm email" ni nada relacionado a
-Authentication — la app dejó de usar Supabase Auth por completo.
+   **Importante:** si ya habías creado algún usuario en la versión anterior
+   (la que solo pedía nombre, sin contraseña), esta migración lo borra —
+   esas cuentas no tienen contraseña y no sirven para entrar. Vas a tener
+   que crear tu usuario de nuevo (esta vez con su contraseña) la primera
+   vez que abras la app.
+
+Ya no hace falta tocar nada de **Authentication** en Supabase (ni
+"Confirm email" ni nada parecido) — esto no usa Supabase Auth.
 
 ## 2. Saca tus llaves de conexión y ponlas en Cloudflare
 
@@ -52,8 +60,7 @@ ese asistente tal cual. Estos son los valores que importan y dónde van:
    no hace falta poner los dos).
 3. Si usaste el botón "Connect to Supabase" de Cloudflare, no tienes que
    tocar nada más. Si en cambio las agregas tú a mano, agrégalas como
-   "Variable" (texto normal), no como "Secret" — de todas formas, con el
-   login quitado, esta llave ya no protege nada por sí sola.
+   "Variable" (texto normal).
 4. Guarda los cambios.
 
 Si en algún punto el asistente no te deja elegir dónde pegar el valor y solo
@@ -74,17 +81,18 @@ desplegar (el siguiente paso ya lo hace).
 
 ## 4. Pruébala
 
-1. Abre `impresa.vjzuniromero89.workers.dev`. Ya no pide usuario ni
-   contraseña — entra directo al Dashboard.
-2. Ve a la pestaña **Usuarios** y crea tu nombre (solo nombre y rol, sin
-   contraseña) con "Crear usuario", y luego elige "Usar este". Desde ese
-   momento, lo que registres queda anotado con tu nombre en la Actividad
-   reciente.
-3. Registra una venta de prueba. Abre la misma URL desde tu celular:
-   entra directo (sin pedir nada) y la venta debe aparecer ahí también.
-4. Si un empleado va a usar la app, que entre a la pestaña **Usuarios** y
-   se cree su propio nombre — no necesita contraseña ni pasar por Supabase.
-5. Para tus deudas (máquinas, préstamos, liquidaciones, etc.), ve a la
+1. Abre `impresa.vjzuniromero89.workers.dev`. Como todavía no hay ningún
+   usuario, te va a pedir crear tu cuenta (usuario, contraseña y
+   confirmar contraseña) — esa primera cuenta queda como **Administrativo**.
+2. Ya adentro, registra una venta de prueba. Abre la misma URL desde tu
+   celular, entra con el mismo usuario y contraseña, y confirma que la
+   venta aparece ahí también.
+3. Si quieres que un empleado use la app, ve a la pestaña **Usuarios**
+   (solo lo puede hacer un Administrativo) y créale su usuario y
+   contraseña ahí, eligiendo el rol **Usuario**. Cada cosa que esa persona
+   agregue, edite o borre queda anotada con su nombre en "Actividad
+   reciente", en esa misma pestaña.
+4. Para tus deudas (máquinas, préstamos, liquidaciones, etc.), ve a la
    pestaña **Deudas** y agrégalas ahí, con el total y, si ya habías pagado
    algo antes, ponlo en "Ya pagado antes". Desde ese momento, cuando
    registres un pago en **Cierre de mes** vas a poder elegir a cuál de esas
@@ -101,14 +109,17 @@ subirlos a Supabase.
 
 ## Qué cambió por dentro (por si te sirve saber)
 
-- Se quitó Supabase Auth por completo: ya no hay usuario, contraseña,
-  sesión ni "Cerrar sesión". La app lee y escribe usando la llave
-  pública/anon de tu proyecto, sin pedir credenciales.
-- Las políticas de seguridad (RLS) de todas las tablas del negocio ahora
-  son abiertas (`migration/005_open_access.sql`) — cualquiera con el link o
-  la llave anon puede leer y escribir.
-- La pestaña **Usuarios** ahora usa una tabla nueva, `app_users`: solo
-  nombre y rol, sin contraseña, sin relación con Supabase Auth. La tabla
-  vieja `business_users` (con usuario/contraseña) queda sin usarse.
+- La pestaña **Usuarios** ahora pide usuario, contraseña y rol
+  (Administrativo o Usuario) en la tabla `app_users`. La contraseña se
+  guarda como un hash PBKDF2 con sal, calculado en el navegador — no en
+  texto plano — pero no hay sesión de Supabase detrás (ver el aviso de
+  arriba).
+- Solo un Administrativo puede crear o borrar usuarios desde la pestaña
+  Usuarios. Cualquiera que entre puede ver la lista de usuarios y la
+  Actividad reciente.
+- El navegador recuerda quién entró (no hay que escribir la contraseña
+  cada vez) hasta que se presiona **Cerrar sesión**.
+- Sigue sin usarse Supabase Auth. La tabla vieja `business_users` (de
+  antes de quitar el login por completo) queda sin usarse.
 - El registro de actividad (`activity_log`) sigue igual: cada acción queda
-  anotada con el nombre que la persona eligió en Usuarios.
+  anotada con el usuario que inició sesión.

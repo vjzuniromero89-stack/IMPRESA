@@ -75,3 +75,10 @@ Ventas con pago inicial, saldo pendiente, abonos, historial y cambio automatico 
 - Se quitó Supabase Auth por dentro (ya no crea cuentas ni sesiones); las tablas ahora se leen/escriben con la llave pública/anon, así que hace falta correr `migration/005_open_access.sql` para abrir los permisos (RLS).
 - La pestaña **Usuarios** cambió: ya no se crean cuentas con contraseña. Ahora es una lista simple de nombres (sin contraseña) — cada quien elige "Usar este" para que lo que registre quede anotado con su nombre en el historial de actividad, o crea uno nuevo con solo su nombre y su rol.
 - Ver `INSTRUCCIONES_SUPABASE.md` para el paso de la migración 005 y el aviso de seguridad importante que trae este cambio.
+
+## v3.17.0 — Vuelve el inicio de sesión, ahora con Administrativo/Usuario
+- Regresa la pantalla de entrada con **usuario y contraseña**. La primera vez que alguien entra (todavía no hay ningún usuario creado), esa cuenta se crea sola y queda como **Administrativo**.
+- Los roles ahora son **Administrativo** y **Usuario** (antes eran Dueño/Empleado). Solo un Administrativo puede crear usuarios nuevos y borrarlos desde la pestaña Usuarios; ahí se pide usuario, contraseña, confirmar contraseña y el rol.
+- Ya no se usa Supabase Auth (eso seguía quitado): la contraseña se guarda como un hash (PBKDF2 con sal), calculado en el propio navegador, en la tabla `app_users` — no en texto plano. Ver el aviso de seguridad en `INSTRUCCIONES_SUPABASE.md`: como las tablas siguen abiertas (sin sesión de Supabase), esto protege de un visitante casual, no de alguien técnico con la llave del proyecto.
+- El navegador recuerda la sesión hasta que se presiona "Cerrar sesión" (ya no hay que escribir la contraseña cada vez).
+- Requiere correr `migration/006_user_login.sql`. Esa migración borra las cuentas que se habían creado en la v3.16.0 (solo nombre, sin contraseña) porque ya no sirven para entrar — hay que volver a crearlas con su contraseña.
