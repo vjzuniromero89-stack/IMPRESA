@@ -12,13 +12,20 @@
 --    ninguna relación con Supabase Auth ni con la tabla anterior
 --    "business_users" (esa tabla queda sin usarse, no hace falta borrarla).
 --
+-- Esta versión es "a prueba de orden": si alguna tabla de una migración
+-- anterior (003 activity_log, 004 debts/debt_payments) todavía no existe en
+-- tu proyecto, esta migración simplemente la salta en vez de fallar a la
+-- mitad. Aun así, lo ideal es correr antes 001, 002, 003 y 004 (son
+-- seguras de correr de nuevo aunque ya las hayas corrido) para tener
+-- también esas funciones (Usuarios/Actividad, Deudas) funcionando.
+--
 -- IMPORTANTE: después de correr esto, cualquier persona con el link de la
 -- app (o con la llave pública/anon de tu proyecto) puede ver y modificar
 -- los datos del negocio, sin que se le pida contraseña. Es exactamente lo
 -- que se pidió: quitar el inicio de sesión por completo.
 --
--- Ejecuta este archivo completo en el SQL Editor de Supabase (una sola vez).
--- Requiere haber corrido antes 001, 002, 003 y 004.
+-- Ejecuta este archivo completo en el SQL Editor de Supabase (una sola vez;
+-- se puede volver a correr sin problema si hace falta).
 
 -- ---------- Nueva tabla: lista de usuarios (sin contraseña) ----------
 create table if not exists public.app_users (
@@ -36,76 +43,48 @@ grant select, insert, update, delete on public.app_users to anon, authenticated;
 drop policy if exists app_users_open on public.app_users;
 create policy app_users_open on public.app_users for all to public using (true) with check (true);
 
--- ---------- Abrir el acceso en todas las tablas del negocio ----------
--- Se agrega el permiso de tabla también para "anon" (antes solo lo tenía
--- "authenticated"), y se reemplaza cada política basada en auth.uid()/
--- business_users por una política abierta por tabla.
+-- ---------- Abrir el acceso en el resto de tablas del negocio ----------
+-- Por cada tabla: si existe, le da permiso también a "anon" (visitante sin
+-- sesión) y reemplaza sus políticas anteriores (basadas en auth.uid()) por
+-- una sola política abierta. Si la tabla todavía no existe (porque esa
+-- migración anterior no se había corrido), la salta sin dar error.
+do $$
+declare
+  cfg record;
+  old_policy text;
+  i int;
+begin
+  for cfg in
+    select * from (values
+      ('businesses'::text,            'businesses_open'::text,            array['business_member_select','business_create','business_member_update']::text[]),
+      ('business_users',              'business_users_open',              array['business_member_self','business_member_join','business_owner_invite']),
+      ('products',                    'products_open',                    array['business_member_data']),
+      ('financial_accounts',          'financial_accounts_open',          array['business_member_data']),
+      ('sales',                       'sales_open',                       array['business_member_data']),
+      ('expenses',                    'expenses_open',                    array['business_member_data']),
+      ('monthly_inventory',           'monthly_inventory_open',           array['business_member_data']),
+      ('month_closes',                'month_closes_open',                array['business_member_data']),
+      ('sale_payments',               'sale_payments_open',               array['sale_payments_member']),
+      ('inventory_month_notes',       'inventory_month_notes_open',       array['business_member_data']),
+      ('quotes',                      'quotes_open',                      array['business_member_data']),
+      ('activity_log',                'activity_log_open',                array['business_member_activity_select','business_member_activity_insert']),
+      ('debts',                       'debts_open',                       array['business_member_data']),
+      ('debt_payments',               'debt_payments_open',               array['business_member_data'])
+    ) as t(tbl, new_policy, old_policies)
+  loop
+    if to_regclass('public.' || cfg.tbl) is null then
+      raise notice 'IMPRESA 005: la tabla "%" todavía no existe, se omite (corre la migración correspondiente primero si la necesitas).', cfg.tbl;
+      continue;
+    end if;
 
-grant select, insert, update, delete on
-  public.businesses, public.business_users, public.products,
-  public.financial_accounts, public.sales, public.expenses,
-  public.monthly_inventory, public.month_closes, public.sale_payments,
-  public.inventory_month_notes, public.quotes, public.activity_log,
-  public.debts, public.debt_payments
-  to anon, authenticated;
+    execute format('grant select, insert, update, delete on public.%I to anon, authenticated', cfg.tbl);
 
-drop policy if exists business_member_select on public.businesses;
-drop policy if exists business_create on public.businesses;
-drop policy if exists business_member_update on public.businesses;
-drop policy if exists businesses_open on public.businesses;
-create policy businesses_open on public.businesses for all to public using (true) with check (true);
+    for i in coalesce(array_lower(cfg.old_policies, 1), 1) .. coalesce(array_upper(cfg.old_policies, 1), 0) loop
+      old_policy := cfg.old_policies[i];
+      execute format('drop policy if exists %I on public.%I', old_policy, cfg.tbl);
+    end loop;
 
-drop policy if exists business_member_self on public.business_users;
-drop policy if exists business_member_join on public.business_users;
-drop policy if exists business_owner_invite on public.business_users;
-drop policy if exists business_users_open on public.business_users;
-create policy business_users_open on public.business_users for all to public using (true) with check (true);
-
-drop policy if exists business_member_data on public.products;
-drop policy if exists products_open on public.products;
-create policy products_open on public.products for all to public using (true) with check (true);
-
-drop policy if exists business_member_data on public.financial_accounts;
-drop policy if exists financial_accounts_open on public.financial_accounts;
-create policy financial_accounts_open on public.financial_accounts for all to public using (true) with check (true);
-
-drop policy if exists business_member_data on public.sales;
-drop policy if exists sales_open on public.sales;
-create policy sales_open on public.sales for all to public using (true) with check (true);
-
-drop policy if exists business_member_data on public.expenses;
-drop policy if exists expenses_open on public.expenses;
-create policy expenses_open on public.expenses for all to public using (true) with check (true);
-
-drop policy if exists business_member_data on public.monthly_inventory;
-drop policy if exists monthly_inventory_open on public.monthly_inventory;
-create policy monthly_inventory_open on public.monthly_inventory for all to public using (true) with check (true);
-
-drop policy if exists business_member_data on public.month_closes;
-drop policy if exists month_closes_open on public.month_closes;
-create policy month_closes_open on public.month_closes for all to public using (true) with check (true);
-
-drop policy if exists sale_payments_member on public.sale_payments;
-drop policy if exists sale_payments_open on public.sale_payments;
-create policy sale_payments_open on public.sale_payments for all to public using (true) with check (true);
-
-drop policy if exists business_member_data on public.inventory_month_notes;
-drop policy if exists inventory_month_notes_open on public.inventory_month_notes;
-create policy inventory_month_notes_open on public.inventory_month_notes for all to public using (true) with check (true);
-
-drop policy if exists business_member_data on public.quotes;
-drop policy if exists quotes_open on public.quotes;
-create policy quotes_open on public.quotes for all to public using (true) with check (true);
-
-drop policy if exists business_member_activity_select on public.activity_log;
-drop policy if exists business_member_activity_insert on public.activity_log;
-drop policy if exists activity_log_open on public.activity_log;
-create policy activity_log_open on public.activity_log for all to public using (true) with check (true);
-
-drop policy if exists business_member_data on public.debts;
-drop policy if exists debts_open on public.debts;
-create policy debts_open on public.debts for all to public using (true) with check (true);
-
-drop policy if exists business_member_data on public.debt_payments;
-drop policy if exists debt_payments_open on public.debt_payments;
-create policy debt_payments_open on public.debt_payments for all to public using (true) with check (true);
+    execute format('drop policy if exists %I on public.%I', cfg.new_policy, cfg.tbl);
+    execute format('create policy %I on public.%I for all to public using (true) with check (true)', cfg.new_policy, cfg.tbl);
+  end loop;
+end $$;
