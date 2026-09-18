@@ -16,8 +16,8 @@ export type DebtPaymentRecord = { id: string; debtId: string; month?: string; ac
 export type MonthClose = { id: string; month: string; closedAt: string; rate: number; inventoryC: number; accounts: { name: string; currency: Currency; balance: number; equivalentC: number }[]; bankCashC: number; expensesC: number; salesC: number; currentValueC: number; baseC: number; resultC: number; notes: string; openingC?: number; debtPaymentsC?: number; carryForwardC?: number; debtNotes?: string; preCloseC?: number; debtPaymentDetails?: DebtPayment[] };
 export type Quote = { id: string; date: string; client: string; description: string; amount: number; currency?: Currency; enteredAmount?: number; status: string };
 export type InitialBase = { confirmed: boolean; baseUSD: number; baseC: number; confirmedAt?: string };
-export type BusinessUserRole = 'owner' | 'empleado';
-export type AppUser = { id: string; name: string; role: BusinessUserRole; createdAt: string };
+export type BusinessUserRole = 'admin' | 'usuario';
+export type AppUser = { id: string; username: string; role: BusinessUserRole; createdAt: string };
 export type ActivityEntry = { id: string; username: string; action: string; entity: string; description: string; at: string };
 export type LogInfo = { userId?: string; username?: string };
 
@@ -46,23 +46,72 @@ export async function ensureBusiness(): Promise<string> {
   return businessId;
 }
 
-// ---------- Usuarios del negocio (pestaña "Usuarios") ----------
-// Sin contraseña: solo un nombre y un rol, para anotar quién hizo cada
-// cosa en el registro de actividad. Cualquiera puede crear uno o "usarlo"
-// (el navegador recuerda cuál se eligió, guardado en localStorage).
-export async function listAppUsers(businessId: string): Promise<AppUser[]> {
-  const { data, error } = await supabase.from('app_users').select('id, name, role, created_at').eq('business_id', businessId).order('created_at', { ascending: true });
-  if (error) throw error;
-  return (data || []).map((r: any) => ({ id: r.id, name: r.name || '(sin nombre)', role: (r.role as BusinessUserRole) || 'empleado', createdAt: dateOnly(r.created_at) }));
+// ---------- Contraseñas: hash en el navegador (PBKDF2 + sal) ----------
+// Nunca se manda ni se guarda la contraseña en texto plano. Esto NO
+// reemplaza a un backend real: como las tablas quedaron abiertas (sin
+// inicio de sesión de Supabase), alguien con la llave anon técnicamente
+// podría leer el hash y tratar de adivinarlo offline. Sirve para que la
+// pantalla de entrada funcione como se pidió (usuario/contraseña, roles
+// Administrativo/Usuario), no como una bóveda a prueba de todo.
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+function hexToBytes(hex: string): Uint8Array {
+  const out = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.substr(i * 2, 2), 16);
+  return out;
+}
+async function pbkdf2(password: string, saltHex?: string): Promise<{ salt: string; hash: string }> {
+  const salt = saltHex ? hexToBytes(saltHex) : crypto.getRandomValues(new Uint8Array(16));
+  const keyMaterial = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: salt as BufferSource, iterations: 150000, hash: 'SHA-256' }, keyMaterial, 256);
+  return { salt: bytesToHex(salt), hash: bytesToHex(new Uint8Array(bits)) };
 }
 
-export async function addAppUser(businessId: string, rawName: string, role: BusinessUserRole): Promise<AppUser> {
-  const name = (rawName || '').trim();
-  if (name.length < 2) throw new Error('Escribe un nombre de al menos 2 letras.');
-  const id = uid();
-  const { error } = await supabase.from('app_users').insert({ id, business_id: businessId, name, role });
+// ---------- Usuarios del negocio (pestaña "Usuarios") ----------
+// Usuario y contraseña reales, con dos roles: admin (Administrativo) y
+// usuario (Usuario). Con esas credenciales se entra a la app.
+export async function listAppUsers(businessId: string): Promise<AppUser[]> {
+  const { data, error } = await supabase.from('app_users').select('id, username, role, created_at').eq('business_id', businessId).order('created_at', { ascending: true });
   if (error) throw error;
-  return { id, name, role, createdAt: dateOnly(new Date().toISOString()) };
+  return (data || []).map((r: any) => ({ id: r.id, username: r.username || '(sin nombre)', role: (r.role as BusinessUserRole) || 'usuario', createdAt: dateOnly(r.created_at) }));
+}
+
+// true si ya existe al menos una cuenta con contraseña en este negocio.
+// Sirve para decidir si la pantalla de entrada debe ofrecer "crear tu
+// primera cuenta" (Administrativo) o el formulario normal de inicio de sesión.
+export async function hasAnyLoginableUser(businessId: string): Promise<boolean> {
+  const { data, error } = await supabase.from('app_users').select('id').eq('business_id', businessId).not('password_hash', 'is', null).limit(1);
+  if (error) throw error;
+  return !!(data && data.length);
+}
+
+export async function addAppUser(businessId: string, rawUsername: string, password: string, role: BusinessUserRole): Promise<AppUser> {
+  const username = (rawUsername || '').trim();
+  if (username.length < 3) throw new Error('El usuario debe tener al menos 3 letras o números.');
+  if (!password || password.length < 6) throw new Error('La contraseña debe tener al menos 6 caracteres.');
+  const { data: existing, error: e0 } = await supabase.from('app_users').select('id, username').eq('business_id', businessId);
+  if (e0) throw e0;
+  if ((existing || []).some((r: any) => (r.username || '').toLowerCase() === username.toLowerCase())) {
+    throw new Error('Ese usuario ya existe. Elige otro.');
+  }
+  const { salt, hash } = await pbkdf2(password);
+  const id = uid();
+  const { error } = await supabase.from('app_users').insert({ id, business_id: businessId, username, role, password_salt: salt, password_hash: hash });
+  if (error) throw error;
+  return { id, username, role, createdAt: dateOnly(new Date().toISOString()) };
+}
+
+export async function authenticateUser(businessId: string, rawUsername: string, password: string): Promise<AppUser> {
+  const username = (rawUsername || '').trim();
+  const { data, error } = await supabase.from('app_users').select('*').eq('business_id', businessId);
+  if (error) throw error;
+  const row = (data || []).find((r: any) => (r.username || '').toLowerCase() === username.toLowerCase());
+  const fail = (): never => { throw new Error('Usuario o contraseña incorrectos.'); };
+  if (!row || !row.password_hash || !row.password_salt) return fail();
+  const { hash } = await pbkdf2(password, row.password_salt);
+  if (hash !== row.password_hash) return fail();
+  return { id: row.id, username: row.username, role: (row.role as BusinessUserRole) || 'usuario', createdAt: dateOnly(row.created_at) };
 }
 
 export async function removeAppUser(id: string) {
