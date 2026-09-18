@@ -188,19 +188,22 @@ function MonthClosing({closes,monthCloses,addMonthClose,sales,expenses,accounts,
 }
 function Debts({debts,setDebts,debtPayments,rate,businessId,logCtx,reloadDebtPayments,accounts,setAccounts,reloadAccountHistory,month}:any){
  const [f,setF]=useState({description:'',amount:'',currency:'C$',initialPaid:'',affects:false});
- const hasDebts=!!(debts&&debts.length),hasAccounts=!!(accounts&&accounts.length);
- const [payDebtId,setPayDebtId]=useState('');
+ const hasAccounts=!!(accounts&&accounts.length);
+ const [payingDebtId,setPayingDebtId]=useState<string|null>(null);
  const [payAccountId,setPayAccountId]=useState('');
  const [payAmount,setPayAmount]=useState('');
  const [payNote,setPayNote]=useState('');
- useEffect(()=>{if(!payDebtId&&hasDebts)setPayDebtId(debts[0].id)},[debts,payDebtId,hasDebts]);
  useEffect(()=>{if(!payAccountId&&hasAccounts)setPayAccountId(accounts[0].id)},[accounts,payAccountId,hasAccounts]);
  const paidFor=(debtId:string)=>(debtPayments as DebtPaymentRecord[]).filter(p=>p.debtId===debtId).reduce((n,p)=>n+p.equivalentC,0);
- const registerPayment=async()=>{
-  const debt=(debts as Debt[]).find(d=>d.id===payDebtId);
+ const historyFor=(debtId:string)=>(debtPayments as DebtPaymentRecord[]).filter(p=>p.debtId===debtId).slice().sort((a,b)=>String(b.at||'').localeCompare(String(a.at||'')));
+ const togglePay=(d:Debt)=>{
+  if(payingDebtId===d.id){setPayingDebtId(null);return}
+  setPayingDebtId(d.id);setPayAmount('');setPayNote('');
+  if(!payAccountId&&hasAccounts)setPayAccountId(accounts[0].id);
+ };
+ const registerPayment=async(debt:Debt)=>{
   const account=(accounts as Account[]).find(a=>a.id===payAccountId);
   const amount=+payAmount||0;
-  if(!debt)return alert('Selecciona a cuál deuda pertenece el pago.');
   if(!account)return alert('Selecciona de cuál cuenta va a salir el pago.');
   if(amount<=0)return alert('Ingresa un monto válido.');
   if(amount>account.balance)return alert(`Saldo insuficiente en ${account.name}. Disponible: ${money(account.balance,account.currency)}`);
@@ -218,12 +221,6 @@ function Debts({debts,setDebts,debtPayments,rate,businessId,logCtx,reloadDebtPay
   setAccounts((accounts as Account[]).map(a=>a.id===account.id?{...a,balance:newBalance,updated:today()}:a));
   reloadDebtPayments&&reloadDebtPayments();
   setPayAmount('');setPayNote('');
- };
- const history=(d:Debt)=>{
-  const entries=(debtPayments as DebtPaymentRecord[]).filter(p=>p.debtId===d.id).slice().sort((a,b)=>String(a.at||'').localeCompare(String(b.at||'')));
-  if(!entries.length)return alert('Esta deuda todavía no tiene pagos registrados.');
-  const paid=paidFor(d.id),remaining=Math.max(0,d.totalAmount-paid);
-  alert(`Historial de pagos · ${d.description}\n\n`+entries.map(p=>`${String(p.at||'').slice(0,10)}${p.month?' (cierre '+p.month+')':''} — ${money(fromNio(p.equivalentC,d.currency,rate),d.currency||'C$')}${p.accountName?' · '+p.accountName:''}${p.note?' · '+p.note:''}`).join('\n')+`\n\nPagado: ${money(fromNio(paid,d.currency,rate),d.currency||'C$')}\nRestante: ${money(fromNio(remaining,d.currency,rate),d.currency||'C$')}`);
  };
  const add=async()=>{
   if(!f.description||!(+f.amount))return alert('Completa descripción y monto total.');
@@ -261,25 +258,29 @@ function Debts({debts,setDebts,debtPayments,rate,businessId,logCtx,reloadDebtPay
      money(fromNio(remaining,d.currency,rate),d.currency||'C$'),
      <div className="debtBarWrap"><div className="debtBar"><span className="debtBarFill" style={{width:`${pct}%`}}/></div><span>{pct.toFixed(1)}%</span></div>,
      <span className={`pill ${d.affectsPercent?'yes':'no'}`}>{d.affectsPercent?'Sí':'No'}</span>,
-     <div className="actions"><button className="small" onClick={()=>history(d)}>Historial</button><button className="dangerSmall" onClick={()=>remove(d)}>Borrar</button></div>
+     <div className="actions"><button className="small" onClick={()=>togglePay(d)}>{payingDebtId===d.id?'Cerrar':'Registrar pago'}</button><button className="dangerSmall" onClick={()=>remove(d)}>Borrar</button></div>
     ];
    })}/>
    {!debts.length&&<Empty text="No hay deudas registradas todavía."/>}
   </Panel>
-  <Panel title="Registrar pago a una deuda">
-   {!hasDebts?<Empty text="Primero agrega una deuda abajo para poder registrarle pagos."/>:!hasAccounts?<Empty text="Primero crea una cuenta en 'Banco y Efectivo' para poder pagar desde ahí."/>:<>
-    <p className="muted">Elige la deuda, la cuenta de donde va a salir el dinero y el monto. Al registrar el pago, se resta al momento de esa cuenta y queda anotado en el historial de esa deuda.</p>
-    <div className="form grid">
-     <Select l="Deuda a pagar" v={payDebtId} s={setPayDebtId} opts={(debts as Debt[]).map(d=>d.id)} labels={(debts as Debt[]).map(d=>d.description)}/>
-     <Select l="Pagar desde" v={payAccountId} s={setPayAccountId} opts={(accounts as Account[]).map(a=>a.id)} labels={(accounts as Account[]).map(a=>`${a.name} · ${a.currency} · disponible ${money(a.balance,a.currency)}`)}/>
+  {payingDebtId&&(()=>{
+   const d=(debts as Debt[]).find((x:Debt)=>x.id===payingDebtId);
+   if(!d)return null;
+   const entries=historyFor(d.id),paid=paidFor(d.id),remaining=Math.max(0,d.totalAmount-paid);
+   return <Panel title={`Registrar pago · ${d.description}`}>
+    {!hasAccounts?<Empty text="Primero crea una cuenta en 'Banco y Efectivo' para poder pagar desde ahí."/>:<div className="form grid">
+     <Select l="Pagar desde" v={payAccountId} s={setPayAccountId} opts={(accounts as Account[]).map((a:Account)=>a.id)} labels={(accounts as Account[]).map((a:Account)=>`${a.name} · ${a.currency} · disponible ${money(a.balance,a.currency)}`)}/>
      <Input l="Monto" v={payAmount} s={setPayAmount} type="number"/>
      <Input l="Nota (opcional)" v={payNote} s={setPayNote}/>
-     <button className="btn primary" onClick={registerPayment}>+ Registrar pago</button>
-    </div>
-   </>}
-  </Panel>
+     <button className="btn primary" onClick={()=>registerPayment(d)}>+ Registrar pago</button>
+    </div>}
+    <div className="note">Pagado: {money(fromNio(paid,d.currency,rate),d.currency||'C$')} · Restante: {money(fromNio(remaining,d.currency,rate),d.currency||'C$')}</div>
+    <h3 style={{marginTop:'20px'}}>Historial de pagos</h3>
+    {!entries.length?<Empty text="Esta deuda todavía no tiene pagos registrados."/>:<Table heads={['Fecha','Cuenta','Monto','Nota']} rows={entries.map(p=>[`${String(p.at||'').slice(0,10)}${p.month?' · mes '+p.month:''}`,p.accountName||'—',money(fromNio(p.equivalentC,d.currency,rate),d.currency||'C$'),p.note||'—'])}/>}
+   </Panel>
+  })()}
   <Panel title="Agregar deuda">
-   <p className="muted">Registra aquí cada deuda (máquinas, préstamos, liquidaciones, etc.). Luego, usa "Registrar pago a una deuda" arriba para irla pagando; cada pago se descuenta al momento de la cuenta que elijas.</p>
+   <p className="muted">Registra aquí cada deuda (máquinas, préstamos, liquidaciones, etc.). Luego, usa "Registrar pago" junto a esa deuda para irla pagando; cada pago se descuenta al momento de la cuenta que elijas.</p>
    <div className="form grid">
     <Input l="Descripción" v={f.description} s={v=>setF({...f,description:v})}/>
     <MoneyInput l="Total de la deuda" v={f.amount} s={v=>setF({...f,amount:v})} c={f.currency as 'C$'|'US$'} sc={c=>setF({...f,currency:c})}/>

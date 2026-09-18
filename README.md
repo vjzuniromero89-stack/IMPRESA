@@ -103,3 +103,8 @@ Ventas con pago inicial, saldo pendiente, abonos, historial y cambio automatico 
 - Ese cambio de saldo también queda anotado automáticamente en el **Historial** de esa cuenta, en "Banco y Efectivo" — igual que cualquier otro cambio de saldo.
 - La pestaña **Cierre de mes** ahora solo muestra, de forma informativa, los pagos de deudas que ya registraste ese mes (porque ya se descontaron solos de su cuenta) y se enfoca en guardar el resultado final del mes.
 - No requiere ninguna migración nueva — usa las mismas tablas `debts`, `debt_payments` y `account_balance_history` que ya tenías.
+
+## v3.19.1 — "Registrar pago" al lado de cada deuda
+- Se quitó el cuadro fijo de "Registrar pago a una deuda" de abajo de la lista.
+- Ahora cada deuda tiene, junto a "Borrar", un botón **Registrar pago**. Al presionarlo se abre justo debajo de la lista un panel con el formulario (cuenta de origen, monto, nota) para esa deuda, y debajo del formulario su **Historial de pagos** completo (fecha, cuenta, monto y nota) — todo en un solo lugar.
+- El botón "Historial" aparte se quitó porque ahora el historial siempre aparece junto al formulario de pago.
