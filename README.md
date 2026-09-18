@@ -111,3 +111,8 @@ Ventas con pago inicial, saldo pendiente, abonos, historial y cambio automatico 
 
 ## v3.19.2 — El Historial de saldo también se muestra abajo, no en una ventana emergente
 - En "Banco y Efectivo", el botón **Historial** de cada cuenta ya no abre una ventana emergente del navegador: ahora abre, justo debajo de las tarjetas de cuentas, una tabla con el historial de saldo de esa cuenta (fecha, saldo anterior, saldo nuevo y quién lo hizo).
+
+## v3.20.0 — Borrar pagos de deudas
+- En **Deudas**, el Historial de pagos de cada deuda tiene ahora un botón **Borrar** en cada pago.
+- Al borrar un pago, el dinero se le devuelve automáticamente a la cuenta de donde había salido (como si el pago nunca hubiera pasado), y esa devolución también queda anotada en el Historial de saldo de esa cuenta. Si el pago no estaba ligado a ninguna cuenta (por ejemplo, un "pago inicial" registrado al crear la deuda), solo se borra el registro, sin tocar ninguna cuenta — la app te avisa cuál de los dos casos es antes de confirmar.
+- No requiere ninguna migración nueva.

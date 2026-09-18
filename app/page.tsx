@@ -4,7 +4,7 @@ import {supabaseConfigured} from '../lib/supabaseClient';
 import Auth from '../components/Auth';
 import Users from '../components/Users';
 import type {Payment,Sale,Expense,Account,InventoryItem,InventoryClose,DebtPayment,MonthClose,Quote,InitialBase,AppUser,Debt,DebtPaymentRecord,AccountBalanceEntry} from '../lib/db';
-import {uid,ensureBusiness,fetchBusinessSettings,updateRateRemote,confirmInitialBaseRemote,useSalesCloud,useExpensesCloud,useAccountsCloud,useQuotesCloud,useMonthClosesCloud,useDebtsCloud,loadInventory,addInventoryItemRemote,deleteInventoryItemRemote,deleteInventoryMonthRemote,logActivity,loadDebtPayments,addDebtPaymentRemote,loadAccountBalanceHistory,addAccountBalanceHistoryRemote} from '../lib/db';
+import {uid,ensureBusiness,fetchBusinessSettings,updateRateRemote,confirmInitialBaseRemote,useSalesCloud,useExpensesCloud,useAccountsCloud,useQuotesCloud,useMonthClosesCloud,useDebtsCloud,loadInventory,addInventoryItemRemote,deleteInventoryItemRemote,deleteInventoryMonthRemote,logActivity,loadDebtPayments,addDebtPaymentRemote,removeDebtPaymentRemote,loadAccountBalanceHistory,addAccountBalanceHistoryRemote} from '../lib/db';
 
 const CURRENT_USER_KEY='impresa_current_user';
 
@@ -228,6 +228,27 @@ function Debts({debts,setDebts,debtPayments,rate,businessId,logCtx,reloadDebtPay
   reloadDebtPayments&&reloadDebtPayments();
   setPayAmount('');setPayNote('');
  };
+ const removePayment=async(debt:Debt,p:DebtPaymentRecord)=>{
+  const account=p.accountId?(accounts as Account[]).find(a=>a.id===p.accountId):undefined;
+  const msg=account
+   ?`¿Borrar este pago de ${money(p.amount,p.currency)} a "${debt.description}"? El dinero se le va a devolver a ${account.name}.`
+   :`¿Borrar este pago de ${money(p.amount,p.currency)} a "${debt.description}"? No se le va a devolver dinero a ninguna cuenta porque este pago no quedó ligado a una.`;
+  if(!confirm(msg))return;
+  if(!businessId)return alert('Todavía se está preparando tu negocio, intenta de nuevo en un momento.');
+  try{
+   await removeDebtPaymentRemote(p.id);
+  }catch(err){console.error(err);return alert('No se pudo borrar el pago en la nube. Inténtalo de nuevo.')}
+  if(account){
+   const newBalance=account.balance+p.amount;
+   try{
+    await addAccountBalanceHistoryRemote(businessId,{id:uid(),accountId:account.id,accountName:account.name,currency:account.currency,previousBalance:account.balance,newBalance,changedBy:logCtx?.username});
+    reloadAccountHistory&&reloadAccountHistory();
+   }catch(err){console.error('IMPRESA: no se pudo registrar la devolución en el historial de saldo',err)}
+   setAccounts((accounts as Account[]).map(a=>a.id===account.id?{...a,balance:newBalance,updated:today()}:a));
+  }
+  if(logCtx)logActivity(businessId,logCtx.userId,logCtx.username,'deleted','debts',`Borró un pago de ${money(p.amount,p.currency)} a "${debt.description}"${account?` (se le devolvió a ${account.name})`:''}`);
+  reloadDebtPayments&&reloadDebtPayments();
+ };
  const add=async()=>{
   if(!f.description||!(+f.amount))return alert('Completa descripción y monto total.');
   const entered=+f.amount,nio=toNio(entered,f.currency as 'C$'|'US$',rate);
@@ -282,7 +303,7 @@ function Debts({debts,setDebts,debtPayments,rate,businessId,logCtx,reloadDebtPay
     </div>}
     <div className="note">Pagado: {money(fromNio(paid,d.currency,rate),d.currency||'C$')} · Restante: {money(fromNio(remaining,d.currency,rate),d.currency||'C$')}</div>
     <h3 style={{marginTop:'20px'}}>Historial de pagos</h3>
-    {!entries.length?<Empty text="Esta deuda todavía no tiene pagos registrados."/>:<Table heads={['Fecha','Cuenta','Monto','Nota']} rows={entries.map(p=>[`${String(p.at||'').slice(0,10)}${p.month?' · mes '+p.month:''}`,p.accountName||'—',money(fromNio(p.equivalentC,d.currency,rate),d.currency||'C$'),p.note||'—'])}/>}
+    {!entries.length?<Empty text="Esta deuda todavía no tiene pagos registrados."/>:<Table heads={['Fecha','Cuenta','Monto','Nota','Acción']} rows={entries.map(p=>[`${String(p.at||'').slice(0,10)}${p.month?' · mes '+p.month:''}`,p.accountName||'—',money(fromNio(p.equivalentC,d.currency,rate),d.currency||'C$'),p.note||'—',<button className="dangerSmall" onClick={()=>removePayment(d,p)}>Borrar</button>])}/>}
    </Panel>
   })()}
   <Panel title="Agregar deuda">

@@ -251,6 +251,10 @@ export async function loadDebtPayments(businessId: string): Promise<DebtPaymentR
   if (error) throw error;
   return (data || []).map((r: any) => ({ id: r.id, debtId: r.debt_id, month: r.month || undefined, accountId: r.account_id || undefined, accountName: r.account_name || undefined, currency: fromDbCurrency(r.currency), amount: Number(r.amount) || 0, equivalentC: Number(r.equivalent_cordobas) || 0, note: r.note || undefined, at: r.paid_at }));
 }
+export async function removeDebtPaymentRemote(paymentId: string) {
+  const { error } = await supabase.from('debt_payments').delete().eq('id', paymentId);
+  if (error) throw error;
+}
 
 async function loadMonthCloses(businessId: string): Promise<MonthClose[]> {
   const { data, error } = await supabase.from('month_closes').select('*').eq('business_id', businessId);
