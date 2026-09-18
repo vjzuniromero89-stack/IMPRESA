@@ -3,8 +3,8 @@ import {useEffect,useState} from 'react';
 import {supabaseConfigured} from '../lib/supabaseClient';
 import Auth from '../components/Auth';
 import Users from '../components/Users';
-import type {Payment,Sale,Expense,Account,InventoryItem,InventoryClose,DebtPayment,MonthClose,Quote,InitialBase,AppUser,Debt,DebtPaymentRecord} from '../lib/db';
-import {uid,ensureBusiness,fetchBusinessSettings,updateRateRemote,confirmInitialBaseRemote,useSalesCloud,useExpensesCloud,useAccountsCloud,useQuotesCloud,useMonthClosesCloud,useDebtsCloud,loadInventory,addInventoryItemRemote,deleteInventoryItemRemote,deleteInventoryMonthRemote,logActivity,loadDebtPayments,addDebtPaymentRemote} from '../lib/db';
+import type {Payment,Sale,Expense,Account,InventoryItem,InventoryClose,DebtPayment,MonthClose,Quote,InitialBase,AppUser,Debt,DebtPaymentRecord,AccountBalanceEntry} from '../lib/db';
+import {uid,ensureBusiness,fetchBusinessSettings,updateRateRemote,confirmInitialBaseRemote,useSalesCloud,useExpensesCloud,useAccountsCloud,useQuotesCloud,useMonthClosesCloud,useDebtsCloud,loadInventory,addInventoryItemRemote,deleteInventoryItemRemote,deleteInventoryMonthRemote,logActivity,loadDebtPayments,addDebtPaymentRemote,loadAccountBalanceHistory,addAccountBalanceHistoryRemote} from '../lib/db';
 
 const CURRENT_USER_KEY='impresa_current_user';
 
@@ -76,7 +76,16 @@ export default function Home(){
  },[businessId]);
  const reloadDebtPayments=()=>{if(businessId)loadDebtPayments(businessId).then(setDebtPaymentsLocal).catch(err=>console.error(err))};
 
- const props={sales,setSales,expenses,setExpenses,accounts,setAccounts,closes,businessId,reloadInventory,monthCloses,addMonthClose,initialBase,setInitialBase,quotes,setQuotes,debts,setDebts,debtPayments,reloadDebtPayments,month,rate,setRate,logCtx};
+ const [accountHistory,setAccountHistoryLocal]=useState<AccountBalanceEntry[]>([]);
+ useEffect(()=>{
+  if(!businessId){setAccountHistoryLocal([]);return}
+  let cancelled=false;
+  loadAccountBalanceHistory(businessId).then(rows=>{if(!cancelled)setAccountHistoryLocal(rows)}).catch(err=>console.error('IMPRESA: no se pudo cargar el historial de saldos',err));
+  return ()=>{cancelled=true}
+ },[businessId]);
+ const reloadAccountHistory=()=>{if(businessId)loadAccountBalanceHistory(businessId).then(setAccountHistoryLocal).catch(err=>console.error(err))};
+
+ const props={sales,setSales,expenses,setExpenses,accounts,setAccounts,closes,businessId,reloadInventory,monthCloses,addMonthClose,initialBase,setInitialBase,quotes,setQuotes,debts,setDebts,debtPayments,reloadDebtPayments,accountHistory,reloadAccountHistory,month,rate,setRate,logCtx};
 
  if(!supabaseConfigured)return <Auth businessId={null} onLogin={()=>{}}/>;
  if(bootError)return <div className="loadingScreen">{bootError}</div>;
@@ -113,7 +122,28 @@ function Sales({sales,setSales,month,rate}:any){
  return <><div className="cards"><div className="card"><span>VENTAS DEL MES</span><strong>{dual(visible.reduce((n:number,x:Sale)=>n+x.amount,0),rate)}</strong></div><div className="card"><span>COBRADO</span><strong>{dual(visible.reduce((n:number,x:Sale)=>n+paid(x),0),rate)}</strong></div><div className="card"><span>CUENTAS POR COBRAR</span><strong>{dual(pending,rate)}</strong><small>Ventas pendientes y pagos parciales</small></div></div><Panel title="Registro de ventas"><div className="form grid"><Input l="Fecha" v={f.date} s={v=>setF({...f,date:v})} type="date"/><Input l="Cliente" v={f.client} s={v=>setF({...f,client:v})}/><Input l="Trabajo / descripción" v={f.description} s={v=>setF({...f,description:v})}/><MoneyInput l="Total" v={f.amount} s={v=>setF({...f,amount:v})} c={f.currency as 'C$'|'US$'} sc={c=>setF({...f,currency:c})}/><MoneyInput l="Pago inicial" v={f.initialPayment} s={v=>setF({...f,initialPayment:v})} c={f.currency as 'C$'|'US$'} sc={c=>setF({...f,currency:c})}/><div className="conversion"><span>Estado automático</span><b>{statusFor(nio,initialNio)} · Saldo {dual(Math.max(0,nio-initialNio),rate)}</b></div><button className="btn primary" onClick={add}>Registrar venta</button></div><Table heads={['Fecha','Cliente','Trabajo','Total','Pagado','Saldo','Estado','Acciones']} rowClasses={visible.map((x:Sale)=>Math.max(0,x.amount-paid(x))>0?'salePending':'')} rows={visible.map((x:Sale)=>{const p=paid(x),bal=Math.max(0,x.amount-p);return [x.date,x.client,x.description||'—',money(x.amount,'C$'),money(p,'C$'),money(bal,'C$'),x.status,<div className="actions"><button className="small" disabled={bal<=0} onClick={()=>abonar(x)}>+ Abono</button><button className="small" onClick={()=>history(x)}>Historial</button><button className="dangerSmall" onClick={()=>{if(confirm('¿Borrar esta venta y su historial de pagos?'))setSales(sales.filter((z:Sale)=>z.id!==x.id))}}>Borrar</button></div>]})}/><div className="note">El estado ya no se selecciona manualmente: 0 pagado = Pendiente; un abono menor al total = Pago parcial; saldo C$0 = Pagada. Los abonos quedan guardados con la venta.</div></Panel></>}
 
 function Expenses({expenses,setExpenses,month,rate}:any){const [f,setF]=useState({date:today(),category:'Operativo',description:'',amount:'',currency:'C$'});const entered=+f.amount||0,nio=toNio(entered,f.currency as 'C$'|'US$',rate);const add=()=>{if(!f.description||!entered)return alert('Completa descripción y monto.');setExpenses([...expenses,{id:uid(),date:f.date,category:f.category,description:f.description,amount:nio,currency:f.currency as 'C$'|'US$',enteredAmount:entered}]);setF({...f,description:'',amount:''})};return <Panel title="Registro de gastos"><div className="form grid"><Input l="Fecha" v={f.date} s={v=>setF({...f,date:v})} type="date"/><Select l="Categoría" v={f.category} s={v=>setF({...f,category:v})} opts={['Materiales','Operativo','Servicios','Transporte','Nómina','Publicidad','Equipos','Otro']}/><Input l="Descripción" v={f.description} s={v=>setF({...f,description:v})}/><MoneyInput l="Monto" v={f.amount} s={v=>setF({...f,amount:v})} c={f.currency as 'C$'|'US$'} sc={c=>setF({...f,currency:c})}/><div className="conversion"><span>Conversión automática</span><b>{dual(nio,rate)}</b></div><button className="btn primary" onClick={add}>Guardar gasto</button></div><Table heads={['Fecha','Categoría','Descripción','C$','US$','Acción']} rows={expenses.filter((x:Expense)=>x.date.startsWith(month)).slice().reverse().map((x:Expense)=>[x.date,x.category,x.description,money(x.amount,'C$'),money(rate>0?x.amount/rate:0,'US$'),<button className="dangerSmall" onClick={()=>{if(confirm('¿Borrar este gasto?'))setExpenses(expenses.filter((z:Expense)=>z.id!==x.id))}}>Borrar</button>])}/></Panel>}
-function Accounts({accounts,setAccounts,rate}:any){const [f,setF]=useState({name:'',currency:'C$'});const add=()=>{if(!f.name)return;setAccounts([...accounts,{id:uid(),name:f.name,currency:f.currency as 'C$'|'US$',balance:0,updated:today()}]);setF({...f,name:''})};const update=(a:Account)=>{const x=prompt(`Saldo actual de ${a.name} (${a.currency})`,String(a.balance));if(x===null||isNaN(+x))return;setAccounts(accounts.map((z:Account)=>z.id===a.id?{...z,balance:+x,updated:today()}:z))};return <><div className="cards">{accounts.map((a:Account)=>{const nio=a.currency==='US$'?a.balance*rate:a.balance;return <div className="card account" key={a.id}><span>{a.name} · {a.currency}</span><strong>{money(a.balance,a.currency)}</strong><small>{dual(nio,rate)} · Actualizado {a.updated}</small><div className="actions"><button className="small" onClick={()=>update(a)}>Actualizar saldo</button><button className="dangerSmall" onClick={()=>{if(confirm(`¿Borrar la cuenta ${a.name}?`))setAccounts(accounts.filter((z:Account)=>z.id!==a.id))}}>Borrar</button></div></div>})}</div><Panel title="Agregar cuenta o caja"><div className="form inline"><Input l="Nombre (ej. BAC Dólares)" v={f.name} s={v=>setF({...f,name:v})}/><Select l="Moneda" v={f.currency} s={v=>setF({...f,currency:v})} opts={['C$','US$']}/><button className="btn primary" onClick={add}>Agregar cuenta</button></div><div className="note">Tipo de cambio actual del sistema: C${rate.toFixed(2)} = US$1.00. El resumen convierte automáticamente todas las cuentas.</div></Panel></>}
+function Accounts({accounts,setAccounts,rate,businessId,logCtx,accountHistory,reloadAccountHistory}:any){
+ const [f,setF]=useState({name:'',currency:'C$'});
+ const add=()=>{if(!f.name)return;setAccounts([...accounts,{id:uid(),name:f.name,currency:f.currency as 'C$'|'US$',balance:0,updated:today()}]);setF({...f,name:''})};
+ const update=async(a:Account)=>{
+  const x=prompt(`Saldo actual de ${a.name} (${a.currency})`,String(a.balance));
+  if(x===null||isNaN(+x))return;
+  const newBalance=+x;
+  if(newBalance===a.balance)return;
+  if(businessId){
+   try{
+    await addAccountBalanceHistoryRemote(businessId,{id:uid(),accountId:a.id,accountName:a.name,currency:a.currency,previousBalance:a.balance,newBalance,changedBy:logCtx?.username});
+    reloadAccountHistory&&reloadAccountHistory();
+   }catch(err){console.error('IMPRESA: no se pudo registrar el historial de saldo',err);alert('No se pudo guardar el historial de este cambio de saldo en la nube, pero el saldo sí se va a actualizar.')}
+  }
+  setAccounts(accounts.map((z:Account)=>z.id===a.id?{...z,balance:newBalance,updated:today()}:z));
+ };
+ const history=(a:Account)=>{
+  const entries=(accountHistory||[]).filter((h:AccountBalanceEntry)=>h.accountId===a.id);
+  if(!entries.length)return alert('Esta cuenta todavía no tiene cambios de saldo registrados.');
+  alert(`Historial de saldo · ${a.name}\n\n`+entries.map((h:AccountBalanceEntry)=>`${String(h.at).slice(0,16).replace('T',' ')} — ${money(h.previousBalance,h.currency)} → ${money(h.newBalance,h.currency)}${h.changedBy?' · '+h.changedBy:''}`).join('\n'));
+ };
+ return <><div className="cards">{accounts.map((a:Account)=>{const nio=a.currency==='US$'?a.balance*rate:a.balance;return <div className="card account" key={a.id}><span>{a.name} · {a.currency}</span><strong>{money(a.balance,a.currency)}</strong><small>{dual(nio,rate)} · Actualizado {a.updated}</small><div className="actions"><button className="small" onClick={()=>update(a)}>Actualizar saldo</button><button className="small" onClick={()=>history(a)}>Historial</button><button className="dangerSmall" onClick={()=>{if(confirm(`¿Borrar la cuenta ${a.name}?`))setAccounts(accounts.filter((z:Account)=>z.id!==a.id))}}>Borrar</button></div></div>})}</div><Panel title="Agregar cuenta o caja"><div className="form inline"><Input l="Nombre (ej. BAC Dólares)" v={f.name} s={v=>setF({...f,name:v})}/><Select l="Moneda" v={f.currency} s={v=>setF({...f,currency:v})} opts={['C$','US$']}/><button className="btn primary" onClick={add}>Agregar cuenta</button></div><div className="note">Tipo de cambio actual del sistema: C${rate.toFixed(2)} = US$1.00. El resumen convierte automáticamente todas las cuentas. Cada vez que actualizas el saldo de una cuenta, el saldo anterior queda guardado en su "Historial".</div></Panel></>}
 function Inventory({closes,businessId,reloadInventory,monthCloses,month,rate,logCtx}:any){
  const existing=[...closes].reverse().find((x:InventoryClose)=>x.month===month);
  const items=existing?.items||[];
@@ -124,7 +154,7 @@ function Inventory({closes,businessId,reloadInventory,monthCloses,month,rate,log
  const removeMonth=async(m:string)=>{try{await deleteInventoryMonthRemote(businessId,m);reloadInventory();if(logCtx)logActivity(businessId,logCtx.userId,logCtx.username,'deleted','monthly_inventory',`Eliminó el inventario del mes ${m}`)}catch(err){console.error(err);alert('No se pudo borrar el inventario de ese mes.')}};
  return <><Panel title={`Inventario · ${month}`}>{closed?<div className="closedBanner">✓ Este mes está CERRADO.</div>:<><div className="form grid"><Input l="Producto / material" v={f.name} s={v=>setF({...f,name:v})}/><Select l="Categoría" v={f.category} s={v=>setF({...f,category:v})} opts={['Camisas','Hilos','Tintas','Vinil','Sublimación','Empaque','Otros']}/><Input l="Cantidad física" v={f.qty} s={v=>setF({...f,qty:v})} type="number"/><MoneyInput l="Valor unitario" v={f.unitValue} s={v=>setF({...f,unitValue:v})} c={f.currency as 'C$'|'US$'} sc={c=>setF({...f,currency:c})}/><div className="conversion"><span>Valor unitario convertido</span><b>{dual(unitNio,rate)}</b></div><button className="btn primary" onClick={add}>+ Agregar al conteo</button></div><div className="note">Al presionar “Agregar al conteo”, el producto queda registrado y guardado automáticamente en la nube. No necesitas guardar el inventario otra vez.</div><Table heads={['Producto/material','Categoría','Cantidad','Unit. C$','Unit. US$','Total C$','Total US$','Acción']} rows={items.map((x:InventoryItem)=>[x.name,x.category,x.qty,money(x.unitValue,'C$'),money(rate>0?x.unitValue/rate:0,'US$'),money(x.qty*x.unitValue,'C$'),money(rate>0?x.qty*x.unitValue/rate:0,'US$'),<button className="dangerSmall" onClick={()=>removeItem(x.id,x.name)}>Borrar</button>])}/><div className="cards"><div className="card"><span>LÍNEAS CONTADAS</span><strong>{items.length}</strong></div><div className="card"><span>VALOR INVENTARIO</span><strong>{dual(total,rate)}</strong></div></div></>}</Panel><Panel title="Historial de inventarios"><Table heads={['Mes','Fecha','Productos/materiales','Total C$','Total US$','Notas','Acción']} rows={[...closes].sort((a:InventoryClose,b:InventoryClose)=>b.month.localeCompare(a.month)).map((x:InventoryClose)=>[x.month,x.date,x.items.length,money(x.total,'C$'),money(rate>0?x.total/rate:0,'US$'),x.notes,<button className="dangerSmall" onClick={()=>{if(confirm(`¿Borrar el inventario de ${x.month}?`))removeMonth(x.month)}}>Borrar</button>])}/></Panel></>
 }
-function MonthClosing({closes,monthCloses,addMonthClose,sales,expenses,accounts,setAccounts,month,rate,debts,businessId,reloadDebtPayments,logCtx}:any){
+function MonthClosing({closes,monthCloses,addMonthClose,sales,expenses,accounts,setAccounts,month,rate,debts,businessId,reloadDebtPayments,reloadAccountHistory,logCtx}:any){
  const inv=[...closes].reverse().find((x:InventoryClose)=>x.month===month),closed=monthCloses.find((x:MonthClose)=>x.month===month),previous=[...monthCloses].filter((x:MonthClose)=>x.month<month).sort((a:MonthClose,b:MonthClose)=>b.month.localeCompare(a.month))[0];
  const [payAccount,setPayAccount]=useState(accounts[0]?.id||''); const [payDebtId,setPayDebtId]=useState(''); const [payAmount,setPayAmount]=useState(''); const [payNote,setPayNote]=useState(''); const [debtPayments,setDebtPayments]=useState<DebtPayment[]>([]);
  useEffect(()=>{if(!payAccount&&accounts[0])setPayAccount(accounts[0].id)},[accounts,payAccount]);
@@ -150,6 +180,17 @@ function MonthClosing({closes,monthCloses,addMonthClose,sales,expenses,accounts,
      }catch(err){console.error('IMPRESA: no se pudo enlazar el pago a la deuda',err)}
     }
     reloadDebtPayments&&reloadDebtPayments();
+    // También queda anotado, por cada cuenta, el saldo que tenía antes de
+    // que el cierre le descontara los pagos de deuda (mismo historial que
+    // usa "Actualizar saldo" en Banco y Efectivo).
+    for(const a of accounts as Account[]){
+     const used=stagedFor(a.id);
+     if(!used)continue;
+     try{
+      await addAccountBalanceHistoryRemote(businessId,{id:uid(),accountId:a.id,accountName:a.name,currency:a.currency,previousBalance:a.balance,newBalance:a.balance-used,changedBy:logCtx?.username});
+     }catch(err){console.error('IMPRESA: no se pudo registrar el historial de saldo del cierre',err)}
+    }
+    reloadAccountHistory&&reloadAccountHistory();
    }
    alert(`${month} cerrado definitivamente. ${dual(finalC,rate)} entra al siguiente mes.`)
   }catch(err){console.error(err);alert('No se pudo guardar el cierre en la nube. Revisa tu conexión, verifica tus cuentas y vuelve a intentar el cierre.')}};
@@ -158,6 +199,12 @@ function MonthClosing({closes,monthCloses,addMonthClose,sales,expenses,accounts,
 function Debts({debts,setDebts,debtPayments,rate,businessId,logCtx,reloadDebtPayments}:any){
  const [f,setF]=useState({description:'',amount:'',currency:'C$',initialPaid:'',affects:false});
  const paidFor=(debtId:string)=>(debtPayments as DebtPaymentRecord[]).filter(p=>p.debtId===debtId).reduce((n,p)=>n+p.equivalentC,0);
+ const history=(d:Debt)=>{
+  const entries=(debtPayments as DebtPaymentRecord[]).filter(p=>p.debtId===d.id).slice().sort((a,b)=>String(a.at||'').localeCompare(String(b.at||'')));
+  if(!entries.length)return alert('Esta deuda todavía no tiene pagos registrados.');
+  const paid=paidFor(d.id),remaining=Math.max(0,d.totalAmount-paid);
+  alert(`Historial de pagos · ${d.description}\n\n`+entries.map(p=>`${String(p.at||'').slice(0,10)}${p.month?' (cierre '+p.month+')':''} — ${money(fromNio(p.equivalentC,d.currency,rate),d.currency||'C$')}${p.accountName?' · '+p.accountName:''}${p.note?' · '+p.note:''}`).join('\n')+`\n\nPagado: ${money(fromNio(paid,d.currency,rate),d.currency||'C$')}\nRestante: ${money(fromNio(remaining,d.currency,rate),d.currency||'C$')}`);
+ };
  const add=async()=>{
   if(!f.description||!(+f.amount))return alert('Completa descripción y monto total.');
   const entered=+f.amount,nio=toNio(entered,f.currency as 'C$'|'US$',rate);
@@ -194,7 +241,7 @@ function Debts({debts,setDebts,debtPayments,rate,businessId,logCtx,reloadDebtPay
      money(fromNio(remaining,d.currency,rate),d.currency||'C$'),
      <div className="debtBarWrap"><div className="debtBar"><span className="debtBarFill" style={{width:`${pct}%`}}/></div><span>{pct.toFixed(1)}%</span></div>,
      <span className={`pill ${d.affectsPercent?'yes':'no'}`}>{d.affectsPercent?'Sí':'No'}</span>,
-     <button className="dangerSmall" onClick={()=>remove(d)}>Borrar</button>
+     <div className="actions"><button className="small" onClick={()=>history(d)}>Historial</button><button className="dangerSmall" onClick={()=>remove(d)}>Borrar</button></div>
     ];
    })}/>
    {!debts.length&&<Empty text="No hay deudas registradas todavía."/>}

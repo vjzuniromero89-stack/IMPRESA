@@ -85,3 +85,14 @@ Ventas con pago inicial, saldo pendiente, abonos, historial y cambio automatico 
 
 ## v3.17.1 — Corrección: datos que "se borraban" al refrescar
 - `ensureBusiness()` ahora desempata de forma 100% determinística (por fecha y, si hay empate, por id) al elegir el negocio, sin depender del navegador ni del dispositivo — sigue siendo Supabase (la nube) la única fuente de verdad, igual en la PC, el celular o donde sea. Antes, si por cualquier motivo llegaba a haber más de una fila en la tabla `businesses` (por ejemplo de pruebas de sesiones anteriores), cada carga de página podía terminar usando un negocio distinto — dando la impresión de que algo recién guardado (como una deuda) desaparecía al refrescar, cuando en realidad quedó guardado, pero bajo otro negocio.
+
+## v3.18.0 — Historial de saldos en Banco y Efectivo
+- Cada vez que se actualiza el saldo de una cuenta (BAC Dólares, BAC Córdobas, Efectivo o cualquier otra que hayas creado), la app guarda el saldo anterior y el saldo nuevo, con fecha/hora y quién lo hizo.
+- Nuevo botón **Historial** en cada tarjeta de cuenta, en la pestaña "Banco y Efectivo", para ver todos los cambios de saldo de esa cuenta.
+- Ese historial queda guardado en la nube (Supabase), no en el navegador, y nadie puede editarlo ni borrarlo desde la app — solo se puede consultar.
+- Requiere correr `migration/007_account_balance_history.sql`.
+
+## v3.18.1 — Historial de pagos en Deudas + cierre de mes más completo
+- Nueva pestaña **Deudas**: cada deuda tiene ahora un botón **Historial** que muestra todos los pagos que se le han hecho (fecha, cuenta de origen, monto y nota), además de lo pagado y lo restante.
+- Aclaración de cómo ya funcionaba el cierre de mes (por si no quedaba claro): en "Cierre de mes", cada pago que registras en "Pagos y ajustes antes del cierre" ya elige la cuenta de origen y la deuda a pagar; al presionar "Cerrar definitivamente", ese monto se descuenta automáticamente de esa cuenta y queda anotado en el historial de esa deuda — no hace falta ningún paso manual aparte.
+- Ahora, además, cada vez que un cierre de mes descuenta dinero de una cuenta para pagar deudas, ese cambio de saldo también queda anotado en el **Historial** de "Banco y Efectivo" de esa cuenta (igual que cuando usas "Actualizar saldo" a mano) — así el historial de saldos queda completo, sin importar si el cambio fue manual o automático por un cierre.

@@ -99,6 +99,15 @@ desplegar (el siguiente paso ya lo hace).
    deudas pertenece, y el "Pagado"/"Restante"/"% Pagado" de esa deuda se
    actualiza solo.
 
+## 5. Nuevo: Historial de saldos en "Banco y Efectivo"
+
+1. En el SQL Editor, corre también **`migration/007_account_balance_history.sql`**
+   (ábrela, copia todo su contenido, pégalo en una consulta nueva, Run).
+2. Listo. Desde ahora, cada vez que uses "Actualizar saldo" en una cuenta
+   (BAC Dólares, BAC Córdobas, Efectivo, etc.), la app guarda el saldo que
+   tenía antes. Para verlo, entra a **Banco y Efectivo** y presiona
+   **Historial** en la tarjeta de esa cuenta.
+
 ## Importante: tus datos actuales no se mueven solos
 
 Todo lo que tenías guardado antes de conectar Supabase vivía solo en el

@@ -13,6 +13,7 @@ export type InventoryClose = { id: string; month: string; date: string; items: I
 export type DebtPayment = { id: string; accountId: string; accountName: string; currency: Currency; amount: number; equivalentC: number; note: string; debtId?: string; debtDescription?: string };
 export type Debt = { id: string; description: string; totalAmount: number; currency?: Currency; enteredTotal?: number; affectsPercent: boolean; createdAt: string };
 export type DebtPaymentRecord = { id: string; debtId: string; month?: string; accountId?: string; accountName?: string; currency: Currency; amount: number; equivalentC: number; note?: string; at: string };
+export type AccountBalanceEntry = { id: string; accountId: string; accountName: string; currency: Currency; previousBalance: number; newBalance: number; changedBy?: string; at: string };
 export type MonthClose = { id: string; month: string; closedAt: string; rate: number; inventoryC: number; accounts: { name: string; currency: Currency; balance: number; equivalentC: number }[]; bankCashC: number; expensesC: number; salesC: number; currentValueC: number; baseC: number; resultC: number; notes: string; openingC?: number; debtPaymentsC?: number; carryForwardC?: number; debtNotes?: string; preCloseC?: number; debtPaymentDetails?: DebtPayment[] };
 export type Quote = { id: string; date: string; client: string; description: string; amount: number; currency?: Currency; enteredAmount?: number; status: string };
 export type InitialBase = { confirmed: boolean; baseUSD: number; baseC: number; confirmedAt?: string };
@@ -200,6 +201,21 @@ async function loadAccounts(businessId: string): Promise<Account[]> {
 function accountToRow(businessId: string, a: Account) {
   const type = /efectivo|caja/i.test(a.name) ? 'cash' : 'bank';
   return { id: a.id, business_id: businessId, name: a.name, type, currency: toDbCurrency(a.currency), balance: a.balance, updated_at: new Date().toISOString() };
+}
+
+// Historial de saldos de "Banco y Efectivo": cada vez que se actualiza el
+// saldo de una cuenta queda anotado el saldo anterior y el nuevo.
+export async function addAccountBalanceHistoryRemote(businessId: string, entry: { id: string; accountId: string; accountName: string; currency: Currency; previousBalance: number; newBalance: number; changedBy?: string }) {
+  const { error } = await supabase.from('account_balance_history').insert({
+    id: entry.id, business_id: businessId, account_id: entry.accountId, account_name: entry.accountName,
+    currency: toDbCurrency(entry.currency), previous_balance: entry.previousBalance, new_balance: entry.newBalance, changed_by: entry.changedBy || null
+  });
+  if (error) throw error;
+}
+export async function loadAccountBalanceHistory(businessId: string): Promise<AccountBalanceEntry[]> {
+  const { data, error } = await supabase.from('account_balance_history').select('*').eq('business_id', businessId).order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data || []).map((r: any) => ({ id: r.id, accountId: r.account_id, accountName: r.account_name || '', currency: fromDbCurrency(r.currency), previousBalance: Number(r.previous_balance) || 0, newBalance: Number(r.new_balance) || 0, changedBy: r.changed_by || undefined, at: r.created_at }));
 }
 
 async function loadQuotes(businessId: string): Promise<Quote[]> {
