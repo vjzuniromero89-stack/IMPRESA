@@ -2,10 +2,11 @@
 import {useEffect,useState} from 'react';
 import {supabase,supabaseConfigured} from '../lib/supabaseClient';
 import Auth from '../components/Auth';
-import type {Payment,Sale,Expense,Account,InventoryItem,InventoryClose,DebtPayment,MonthClose,Quote,InitialBase} from '../lib/db';
-import {uid,ensureBusiness,fetchBusinessSettings,updateRateRemote,confirmInitialBaseRemote,useSalesCloud,useExpensesCloud,useAccountsCloud,useQuotesCloud,useMonthClosesCloud,loadInventory,addInventoryItemRemote,deleteInventoryItemRemote,deleteInventoryMonthRemote} from '../lib/db';
+import Users from '../components/Users';
+import type {Payment,Sale,Expense,Account,InventoryItem,InventoryClose,DebtPayment,MonthClose,Quote,InitialBase,BusinessUserRole} from '../lib/db';
+import {uid,ensureBusiness,fetchBusinessSettings,updateRateRemote,confirmInitialBaseRemote,useSalesCloud,useExpensesCloud,useAccountsCloud,useQuotesCloud,useMonthClosesCloud,loadInventory,addInventoryItemRemote,deleteInventoryItemRemote,deleteInventoryMonthRemote,fetchMyMembership,logActivity} from '../lib/db';
 
-const tabs=['Dashboard','Ventas','Gastos','Inventario','Banco y Efectivo','Contabilidad','Cierre de mes','Cotizaciones','Reportes','Configuración'];
+const tabs=['Dashboard','Ventas','Gastos','Inventario','Banco y Efectivo','Contabilidad','Cierre de mes','Cotizaciones','Usuarios','Reportes','Configuración'];
 const today=()=>new Date().toISOString().slice(0,10);
 const monthNow=()=>new Date().toISOString().slice(0,7);
 const money=(n:number,c:'C$'|'US$'='C$')=>`${c}${new Intl.NumberFormat('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(n)||0)}`;
@@ -29,10 +30,13 @@ export default function Home(){
   return ()=>{sub.subscription.unsubscribe()}
  },[]);
 
+ const [myUsername,setMyUsername]=useState('');
+ const [myRole,setMyRole]=useState<BusinessUserRole>('empleado');
+
  useEffect(()=>{
   if(!session?.user)return;
   let cancelled=false;
-  ensureBusiness(session.user.id).then(id=>{if(!cancelled)setBusinessId(id)}).catch(err=>{console.error('IMPRESA: no se pudo preparar el negocio',err);if(!cancelled)setBootError(err?.message||'No se pudo preparar tu negocio.')});
+  ensureBusiness(session.user.id,session.user.email).then(id=>{if(!cancelled)setBusinessId(id)}).catch(err=>{console.error('IMPRESA: no se pudo preparar el negocio',err);if(!cancelled)setBootError(err?.message||'No se pudo preparar tu negocio.')});
   return ()=>{cancelled=true}
  },[session?.user?.id]);
 
@@ -43,14 +47,22 @@ export default function Home(){
   return ()=>{cancelled=true}
  },[businessId]);
 
+ useEffect(()=>{
+  if(!businessId||!session?.user?.id)return;
+  let cancelled=false;
+  fetchMyMembership(businessId,session.user.id).then(m=>{if(!cancelled){setMyUsername(m.username);setMyRole(m.role)}}).catch(err=>console.error('IMPRESA: no se pudo cargar el usuario',err));
+  return ()=>{cancelled=true}
+ },[businessId,session?.user?.id]);
+
  const setRate=(v:number)=>{setRateLocal(v);if(businessId)updateRateRemote(businessId,v).catch(err=>{console.error(err);alert('No se pudo guardar el tipo de cambio en la nube.')})};
  const setInitialBase=(v:InitialBase)=>{setInitialBaseLocal(v);if(businessId&&v.confirmed)confirmInitialBaseRemote(businessId,v.baseC).catch(err=>{console.error(err);alert('No se pudo confirmar la situación inicial en la nube.')})};
 
- const [sales,setSales]=useSalesCloud(businessId,rate);
- const [expenses,setExpenses]=useExpensesCloud(businessId,rate);
- const [accounts,setAccounts]=useAccountsCloud(businessId);
- const [quotes,setQuotes]=useQuotesCloud(businessId,rate);
- const [monthCloses,addMonthClose]=useMonthClosesCloud(businessId);
+ const logCtx={userId:session?.user?.id,username:myUsername};
+ const [sales,setSales]=useSalesCloud(businessId,rate,logCtx);
+ const [expenses,setExpenses]=useExpensesCloud(businessId,rate,logCtx);
+ const [accounts,setAccounts]=useAccountsCloud(businessId,logCtx);
+ const [quotes,setQuotes]=useQuotesCloud(businessId,rate,logCtx);
+ const [monthCloses,addMonthClose]=useMonthClosesCloud(businessId,logCtx);
  const [closes,setClosesLocal]=useState<InventoryClose[]>([]);
  useEffect(()=>{
   if(!businessId){setClosesLocal([]);return}
@@ -60,7 +72,7 @@ export default function Home(){
  },[businessId]);
  const reloadInventory=()=>{if(businessId)loadInventory(businessId).then(setClosesLocal).catch(err=>console.error(err))};
 
- const props={sales,setSales,expenses,setExpenses,accounts,setAccounts,closes,businessId,reloadInventory,monthCloses,addMonthClose,initialBase,setInitialBase,quotes,setQuotes,month,rate,setRate};
+ const props={sales,setSales,expenses,setExpenses,accounts,setAccounts,closes,businessId,reloadInventory,monthCloses,addMonthClose,initialBase,setInitialBase,quotes,setQuotes,month,rate,setRate,logCtx,myUserId:session?.user?.id,myUsername,myRole};
 
  if(!authReady)return <div className="loadingScreen">Cargando IMPRESA…</div>;
  if(!supabaseConfigured)return <Auth/>;
@@ -68,8 +80,8 @@ export default function Home(){
  if(bootError)return <div className="loadingScreen">{bootError}</div>;
  if(!businessId||!settingsReady)return <div className="loadingScreen">Preparando tu negocio…</div>;
 
- return <div className="app"><aside><div className="brandWrap"><div className="brandMark">I</div><div><div className="brand">IMPRESA</div><div className="sub">Business Management</div></div></div><div className="workspace">OPERACIONES · NICARAGUA</div><nav>{tabs.map(x=><button key={x} className={tab===x?'active':''} onClick={()=>setTab(x)}>{x}</button>)}</nav>{supabaseConfigured&&session&&<div className="sessionFooter"><small>{session.user.email}</small><button className="small" onClick={()=>supabase.auth.signOut()}>Cerrar sesión</button></div>}</aside><main><header><div><div className="eyebrow">IMPRESA / {month}</div><h1>{tab}</h1><p>Centro administrativo y financiero del negocio</p></div><div className="actions"><label className="month"><span>Mes</span><input type="month" value={month} onChange={e=>setMonth(e.target.value)}/></label><button className="btn" onClick={()=>setTab('Gastos')}>+ Gasto</button><button className="btn primary" onClick={()=>setTab('Ventas')}>+ Venta</button></div></header>
- {tab==='Dashboard'?<Dashboard {...props}/>:tab==='Ventas'?<Sales {...props}/>:tab==='Gastos'?<Expenses {...props}/>:tab==='Inventario'?<Inventory {...props}/>:tab==='Banco y Efectivo'?<Accounts {...props}/>:tab==='Contabilidad'?<Accounting {...props}/>:tab==='Cierre de mes'?<MonthClosing {...props}/>:tab==='Cotizaciones'?<Quotes {...props}/>:tab==='Reportes'?<Reports {...props}/>:<Settings {...props}/>}
+ return <div className="app"><aside><div className="brandWrap"><div className="brandMark">I</div><div><div className="brand">IMPRESA</div><div className="sub">Business Management</div></div></div><div className="workspace">OPERACIONES · NICARAGUA</div><nav>{tabs.map(x=><button key={x} className={tab===x?'active':''} onClick={()=>setTab(x)}>{x}</button>)}</nav>{supabaseConfigured&&session&&<div className="sessionFooter"><small>{myUsername||session.user.email}</small><button className="small" onClick={()=>supabase.auth.signOut()}>Cerrar sesión</button></div>}</aside><main><header><div><div className="eyebrow">IMPRESA / {month}</div><h1>{tab}</h1><p>Centro administrativo y financiero del negocio</p></div><div className="actions"><label className="month"><span>Mes</span><input type="month" value={month} onChange={e=>setMonth(e.target.value)}/></label><button className="btn" onClick={()=>setTab('Gastos')}>+ Gasto</button><button className="btn primary" onClick={()=>setTab('Ventas')}>+ Venta</button></div></header>
+ {tab==='Dashboard'?<Dashboard {...props}/>:tab==='Ventas'?<Sales {...props}/>:tab==='Gastos'?<Expenses {...props}/>:tab==='Inventario'?<Inventory {...props}/>:tab==='Banco y Efectivo'?<Accounts {...props}/>:tab==='Contabilidad'?<Accounting {...props}/>:tab==='Cierre de mes'?<MonthClosing {...props}/>:tab==='Cotizaciones'?<Quotes {...props}/>:tab==='Usuarios'?<Users businessId={businessId} myUserId={session?.user?.id} myUsername={myUsername} myRole={myRole}/>:tab==='Reportes'?<Reports {...props}/>:<Settings {...props}/>}
  </main></div>
 }
 function Dashboard({sales,expenses,accounts,closes,monthCloses,month,rate}:any){
@@ -99,15 +111,15 @@ function Sales({sales,setSales,month,rate}:any){
 
 function Expenses({expenses,setExpenses,month,rate}:any){const [f,setF]=useState({date:today(),category:'Operativo',description:'',amount:'',currency:'C$'});const entered=+f.amount||0,nio=toNio(entered,f.currency as 'C$'|'US$',rate);const add=()=>{if(!f.description||!entered)return alert('Completa descripción y monto.');setExpenses([...expenses,{id:uid(),date:f.date,category:f.category,description:f.description,amount:nio,currency:f.currency as 'C$'|'US$',enteredAmount:entered}]);setF({...f,description:'',amount:''})};return <Panel title="Registro de gastos"><div className="form grid"><Input l="Fecha" v={f.date} s={v=>setF({...f,date:v})} type="date"/><Select l="Categoría" v={f.category} s={v=>setF({...f,category:v})} opts={['Materiales','Operativo','Servicios','Transporte','Nómina','Publicidad','Equipos','Otro']}/><Input l="Descripción" v={f.description} s={v=>setF({...f,description:v})}/><MoneyInput l="Monto" v={f.amount} s={v=>setF({...f,amount:v})} c={f.currency as 'C$'|'US$'} sc={c=>setF({...f,currency:c})}/><div className="conversion"><span>Conversión automática</span><b>{dual(nio,rate)}</b></div><button className="btn primary" onClick={add}>Guardar gasto</button></div><Table heads={['Fecha','Categoría','Descripción','C$','US$','Acción']} rows={expenses.filter((x:Expense)=>x.date.startsWith(month)).slice().reverse().map((x:Expense)=>[x.date,x.category,x.description,money(x.amount,'C$'),money(rate>0?x.amount/rate:0,'US$'),<button className="dangerSmall" onClick={()=>{if(confirm('¿Borrar este gasto?'))setExpenses(expenses.filter((z:Expense)=>z.id!==x.id))}}>Borrar</button>])}/></Panel>}
 function Accounts({accounts,setAccounts,rate}:any){const [f,setF]=useState({name:'',currency:'C$'});const add=()=>{if(!f.name)return;setAccounts([...accounts,{id:uid(),name:f.name,currency:f.currency as 'C$'|'US$',balance:0,updated:today()}]);setF({...f,name:''})};const update=(a:Account)=>{const x=prompt(`Saldo actual de ${a.name} (${a.currency})`,String(a.balance));if(x===null||isNaN(+x))return;setAccounts(accounts.map((z:Account)=>z.id===a.id?{...z,balance:+x,updated:today()}:z))};return <><div className="cards">{accounts.map((a:Account)=>{const nio=a.currency==='US$'?a.balance*rate:a.balance;return <div className="card account" key={a.id}><span>{a.name} · {a.currency}</span><strong>{money(a.balance,a.currency)}</strong><small>{dual(nio,rate)} · Actualizado {a.updated}</small><div className="actions"><button className="small" onClick={()=>update(a)}>Actualizar saldo</button><button className="dangerSmall" onClick={()=>{if(confirm(`¿Borrar la cuenta ${a.name}?`))setAccounts(accounts.filter((z:Account)=>z.id!==a.id))}}>Borrar</button></div></div>})}</div><Panel title="Agregar cuenta o caja"><div className="form inline"><Input l="Nombre (ej. BAC Dólares)" v={f.name} s={v=>setF({...f,name:v})}/><Select l="Moneda" v={f.currency} s={v=>setF({...f,currency:v})} opts={['C$','US$']}/><button className="btn primary" onClick={add}>Agregar cuenta</button></div><div className="note">Tipo de cambio actual del sistema: C${rate.toFixed(2)} = US$1.00. El resumen convierte automáticamente todas las cuentas.</div></Panel></>}
-function Inventory({closes,businessId,reloadInventory,monthCloses,month,rate}:any){
+function Inventory({closes,businessId,reloadInventory,monthCloses,month,rate,logCtx}:any){
  const existing=[...closes].reverse().find((x:InventoryClose)=>x.month===month);
  const items=existing?.items||[];
  const [f,setF]=useState({name:'',category:'Camisas',qty:'',unitValue:'',currency:'C$'});
  const total=items.reduce((a:number,x:InventoryItem)=>a+x.qty*x.unitValue,0),entered=+f.unitValue||0,unitNio=toNio(entered,f.currency as 'C$'|'US$',rate),closed=monthCloses.some((x:MonthClose)=>x.month===month);
- const add=async()=>{if(closed)return alert('Este mes ya está cerrado.');if(!f.name||!+f.qty)return alert('Completa producto/material y cantidad.');const item:InventoryItem={id:uid(),name:f.name,category:f.category,qty:+f.qty,unitValue:unitNio,currency:f.currency as 'C$'|'US$',enteredUnitValue:entered};try{await addInventoryItemRemote(businessId,month,item);reloadInventory();setF({...f,name:'',qty:'',unitValue:''})}catch(err){console.error(err);alert('No se pudo guardar el producto en la nube.')}};
- const removeItem=async(id:string)=>{try{await deleteInventoryItemRemote(id);reloadInventory()}catch(err){console.error(err);alert('No se pudo borrar el producto.')}};
- const removeMonth=async(m:string)=>{try{await deleteInventoryMonthRemote(businessId,m);reloadInventory()}catch(err){console.error(err);alert('No se pudo borrar el inventario de ese mes.')}};
- return <><Panel title={`Inventario · ${month}`}>{closed?<div className="closedBanner">✓ Este mes está CERRADO.</div>:<><div className="form grid"><Input l="Producto / material" v={f.name} s={v=>setF({...f,name:v})}/><Select l="Categoría" v={f.category} s={v=>setF({...f,category:v})} opts={['Camisas','Hilos','Tintas','Vinil','Sublimación','Empaque','Otros']}/><Input l="Cantidad física" v={f.qty} s={v=>setF({...f,qty:v})} type="number"/><MoneyInput l="Valor unitario" v={f.unitValue} s={v=>setF({...f,unitValue:v})} c={f.currency as 'C$'|'US$'} sc={c=>setF({...f,currency:c})}/><div className="conversion"><span>Valor unitario convertido</span><b>{dual(unitNio,rate)}</b></div><button className="btn primary" onClick={add}>+ Agregar al conteo</button></div><div className="note">Al presionar “Agregar al conteo”, el producto queda registrado y guardado automáticamente en la nube. No necesitas guardar el inventario otra vez.</div><Table heads={['Producto/material','Categoría','Cantidad','Unit. C$','Unit. US$','Total C$','Total US$','Acción']} rows={items.map((x:InventoryItem)=>[x.name,x.category,x.qty,money(x.unitValue,'C$'),money(rate>0?x.unitValue/rate:0,'US$'),money(x.qty*x.unitValue,'C$'),money(rate>0?x.qty*x.unitValue/rate:0,'US$'),<button className="dangerSmall" onClick={()=>removeItem(x.id)}>Borrar</button>])}/><div className="cards"><div className="card"><span>LÍNEAS CONTADAS</span><strong>{items.length}</strong></div><div className="card"><span>VALOR INVENTARIO</span><strong>{dual(total,rate)}</strong></div></div></>}</Panel><Panel title="Historial de inventarios"><Table heads={['Mes','Fecha','Productos/materiales','Total C$','Total US$','Notas','Acción']} rows={[...closes].sort((a:InventoryClose,b:InventoryClose)=>b.month.localeCompare(a.month)).map((x:InventoryClose)=>[x.month,x.date,x.items.length,money(x.total,'C$'),money(rate>0?x.total/rate:0,'US$'),x.notes,<button className="dangerSmall" onClick={()=>{if(confirm(`¿Borrar el inventario de ${x.month}?`))removeMonth(x.month)}}>Borrar</button>])}/></Panel></>
+ const add=async()=>{if(closed)return alert('Este mes ya está cerrado.');if(!f.name||!+f.qty)return alert('Completa producto/material y cantidad.');const item:InventoryItem={id:uid(),name:f.name,category:f.category,qty:+f.qty,unitValue:unitNio,currency:f.currency as 'C$'|'US$',enteredUnitValue:entered};try{await addInventoryItemRemote(businessId,month,item);reloadInventory();if(logCtx)logActivity(businessId,logCtx.userId,logCtx.username,'created','monthly_inventory',`Agregó "${item.name}" al inventario de ${month}`);setF({...f,name:'',qty:'',unitValue:''})}catch(err){console.error(err);alert('No se pudo guardar el producto en la nube.')}};
+ const removeItem=async(id:string,name?:string)=>{try{await deleteInventoryItemRemote(id);reloadInventory();if(logCtx)logActivity(businessId,logCtx.userId,logCtx.username,'deleted','monthly_inventory',`Eliminó "${name||'un producto'}" del inventario de ${month}`)}catch(err){console.error(err);alert('No se pudo borrar el producto.')}};
+ const removeMonth=async(m:string)=>{try{await deleteInventoryMonthRemote(businessId,m);reloadInventory();if(logCtx)logActivity(businessId,logCtx.userId,logCtx.username,'deleted','monthly_inventory',`Eliminó el inventario del mes ${m}`)}catch(err){console.error(err);alert('No se pudo borrar el inventario de ese mes.')}};
+ return <><Panel title={`Inventario · ${month}`}>{closed?<div className="closedBanner">✓ Este mes está CERRADO.</div>:<><div className="form grid"><Input l="Producto / material" v={f.name} s={v=>setF({...f,name:v})}/><Select l="Categoría" v={f.category} s={v=>setF({...f,category:v})} opts={['Camisas','Hilos','Tintas','Vinil','Sublimación','Empaque','Otros']}/><Input l="Cantidad física" v={f.qty} s={v=>setF({...f,qty:v})} type="number"/><MoneyInput l="Valor unitario" v={f.unitValue} s={v=>setF({...f,unitValue:v})} c={f.currency as 'C$'|'US$'} sc={c=>setF({...f,currency:c})}/><div className="conversion"><span>Valor unitario convertido</span><b>{dual(unitNio,rate)}</b></div><button className="btn primary" onClick={add}>+ Agregar al conteo</button></div><div className="note">Al presionar “Agregar al conteo”, el producto queda registrado y guardado automáticamente en la nube. No necesitas guardar el inventario otra vez.</div><Table heads={['Producto/material','Categoría','Cantidad','Unit. C$','Unit. US$','Total C$','Total US$','Acción']} rows={items.map((x:InventoryItem)=>[x.name,x.category,x.qty,money(x.unitValue,'C$'),money(rate>0?x.unitValue/rate:0,'US$'),money(x.qty*x.unitValue,'C$'),money(rate>0?x.qty*x.unitValue/rate:0,'US$'),<button className="dangerSmall" onClick={()=>removeItem(x.id,x.name)}>Borrar</button>])}/><div className="cards"><div className="card"><span>LÍNEAS CONTADAS</span><strong>{items.length}</strong></div><div className="card"><span>VALOR INVENTARIO</span><strong>{dual(total,rate)}</strong></div></div></>}</Panel><Panel title="Historial de inventarios"><Table heads={['Mes','Fecha','Productos/materiales','Total C$','Total US$','Notas','Acción']} rows={[...closes].sort((a:InventoryClose,b:InventoryClose)=>b.month.localeCompare(a.month)).map((x:InventoryClose)=>[x.month,x.date,x.items.length,money(x.total,'C$'),money(rate>0?x.total/rate:0,'US$'),x.notes,<button className="dangerSmall" onClick={()=>{if(confirm(`¿Borrar el inventario de ${x.month}?`))removeMonth(x.month)}}>Borrar</button>])}/></Panel></>
 }
 function MonthClosing({closes,monthCloses,addMonthClose,sales,expenses,accounts,setAccounts,month,rate}:any){
  const inv=[...closes].reverse().find((x:InventoryClose)=>x.month===month),closed=monthCloses.find((x:MonthClose)=>x.month===month),previous=[...monthCloses].filter((x:MonthClose)=>x.month<month).sort((a:MonthClose,b:MonthClose)=>b.month.localeCompare(a.month))[0];
