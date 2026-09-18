@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { supabase, createAuthClient } from './supabaseClient';
+import { supabase } from './supabaseClient';
 
 // ---------- Tipos (iguales a los que usaba la app con localStorage) ----------
 export type Currency = 'C$' | 'US$';
@@ -17,7 +17,7 @@ export type MonthClose = { id: string; month: string; closedAt: string; rate: nu
 export type Quote = { id: string; date: string; client: string; description: string; amount: number; currency?: Currency; enteredAmount?: number; status: string };
 export type InitialBase = { confirmed: boolean; baseUSD: number; baseC: number; confirmedAt?: string };
 export type BusinessUserRole = 'owner' | 'empleado';
-export type BusinessUser = { userId: string; username: string; role: BusinessUserRole; createdAt: string };
+export type AppUser = { id: string; name: string; role: BusinessUserRole; createdAt: string };
 export type ActivityEntry = { id: string; username: string; action: string; entity: string; description: string; at: string };
 export type LogInfo = { userId?: string; username?: string };
 
@@ -27,40 +27,16 @@ const fromDbCurrency = (c: string): Currency => (c === 'USD' ? 'US$' : 'C$');
 const dateOnly = (v?: string | null) => (v ? String(v).slice(0, 10) : '');
 const fmt = (n: number) => 'C$' + (Math.round((Number(n) || 0) * 100) / 100).toFixed(2);
 
-// ---------- Usuario y contraseña (sin correo real) ----------
-// Supabase Auth solo trabaja con "correo", así que cada usuario se guarda
-// internamente como <usuario>@impresa.local. La persona nunca ve ni escribe
-// ese correo falso, solo su usuario y contraseña.
-const USERNAME_DOMAIN = 'impresa.local';
-export function normalizeUsername(raw: string): string {
-  return (raw || '').trim();
-}
-export function usernameSlug(raw: string): string {
-  return normalizeUsername(raw).toLowerCase().replace(/[^a-z0-9_.-]/g, '');
-}
-export function usernameToEmail(raw: string): string {
-  const slug = usernameSlug(raw);
-  return slug ? `${slug}@${USERNAME_DOMAIN}` : '';
-}
-export function emailToUsername(email?: string | null): string {
-  return (email || '').split('@')[0] || '';
-}
-
-// ---------- Arranque de sesión: negocio + cuentas por defecto ----------
-export async function ensureBusiness(userId: string, email?: string | null): Promise<string> {
-  const { data: existing, error: e1 } = await supabase.from('business_users').select('business_id').eq('user_id', userId).limit(1).maybeSingle();
+// ---------- Arranque: negocio + cuentas por defecto (sin inicio de sesión) ----------
+// Ya no hay usuario ni contraseña: la app trabaja siempre con UN solo
+// negocio. Si no existe todavía, se crea la primera vez que alguien entra.
+export async function ensureBusiness(): Promise<string> {
+  const { data: existing, error: e1 } = await supabase.from('businesses').select('id').order('created_at', { ascending: true }).limit(1).maybeSingle();
   if (e1) throw e1;
-  if (existing) return existing.business_id as string;
-  // Importante: generamos el id en el cliente y NO pedimos de vuelta la fila
-  // recién insertada (sin .select()) — justo después de crear el negocio
-  // todavía no existe la fila en business_users que la política de lectura
-  // exige, así que pedir la fila de vuelta fallaría aunque el insert en sí
-  // sí se permite.
+  if (existing) return existing.id as string;
   const businessId = uid();
   const { error: e2 } = await supabase.from('businesses').insert({ id: businessId, name: 'IMPRESA', country: 'Nicaragua', base_currency: 'NIO', initial_capital_usd: 4100, exchange_rate: 37 });
   if (e2) throw e2;
-  const { error: e3 } = await supabase.from('business_users').insert({ business_id: businessId, user_id: userId, role: 'owner', username: emailToUsername(email) });
-  if (e3) throw e3;
   const { error: e4 } = await supabase.from('financial_accounts').insert([
     { business_id: businessId, name: 'BAC Dólares', type: 'bank', currency: 'USD', balance: 0 },
     { business_id: businessId, name: 'BAC Córdobas', type: 'bank', currency: 'NIO', balance: 0 },
@@ -71,37 +47,27 @@ export async function ensureBusiness(userId: string, email?: string | null): Pro
 }
 
 // ---------- Usuarios del negocio (pestaña "Usuarios") ----------
-export async function fetchMyMembership(businessId: string, userId: string): Promise<{ username: string; role: BusinessUserRole }> {
-  const { data, error } = await supabase.from('business_users').select('username, role').eq('business_id', businessId).eq('user_id', userId).maybeSingle();
+// Sin contraseña: solo un nombre y un rol, para anotar quién hizo cada
+// cosa en el registro de actividad. Cualquiera puede crear uno o "usarlo"
+// (el navegador recuerda cuál se eligió, guardado en localStorage).
+export async function listAppUsers(businessId: string): Promise<AppUser[]> {
+  const { data, error } = await supabase.from('app_users').select('id, name, role, created_at').eq('business_id', businessId).order('created_at', { ascending: true });
   if (error) throw error;
-  return { username: data?.username || '', role: (data?.role as BusinessUserRole) || 'empleado' };
+  return (data || []).map((r: any) => ({ id: r.id, name: r.name || '(sin nombre)', role: (r.role as BusinessUserRole) || 'empleado', createdAt: dateOnly(r.created_at) }));
 }
 
-export async function listBusinessUsers(businessId: string): Promise<BusinessUser[]> {
-  const { data, error } = await supabase.from('business_users').select('user_id, username, role, created_at').eq('business_id', businessId).order('created_at', { ascending: true });
+export async function addAppUser(businessId: string, rawName: string, role: BusinessUserRole): Promise<AppUser> {
+  const name = (rawName || '').trim();
+  if (name.length < 2) throw new Error('Escribe un nombre de al menos 2 letras.');
+  const id = uid();
+  const { error } = await supabase.from('app_users').insert({ id, business_id: businessId, name, role });
   if (error) throw error;
-  return (data || []).map((r: any) => ({ userId: r.user_id, username: r.username || '(sin nombre)', role: (r.role as BusinessUserRole) || 'empleado', createdAt: dateOnly(r.created_at) }));
+  return { id, name, role, createdAt: dateOnly(new Date().toISOString()) };
 }
 
-// Crea un usuario nuevo (usuario + contraseña) y lo agrega al MISMO negocio.
-// Usa un cliente aparte (sin sesión persistente) para que crear el usuario
-// no reemplace la sesión de quien ya está conectado (el dueño).
-export async function createBusinessUser(businessId: string, rawUsername: string, password: string, role: BusinessUserRole): Promise<BusinessUser> {
-  const slug = usernameSlug(rawUsername);
-  if (slug.length < 3) throw new Error('El usuario debe tener al menos 3 letras o números.');
-  if (!password || password.length < 6) throw new Error('La contraseña debe tener al menos 6 caracteres.');
-  const email = usernameToEmail(rawUsername);
-  const temp = createAuthClient();
-  const { data, error } = await temp.auth.signUp({ email, password });
-  if (error) {
-    if (/registered|exists/i.test(error.message)) throw new Error('Ese usuario ya existe. Elige otro.');
-    throw error;
-  }
-  const newUserId = data.user?.id;
-  if (!newUserId) throw new Error('No se pudo crear el usuario. Revisa que "Confirm email" esté DESACTIVADO en Supabase (Authentication → Sign In / Providers → Email).');
-  const { error: e2 } = await supabase.from('business_users').insert({ business_id: businessId, user_id: newUserId, role, username: slug });
-  if (e2) throw e2;
-  return { userId: newUserId, username: slug, role, createdAt: dateOnly(new Date().toISOString()) };
+export async function removeAppUser(id: string) {
+  const { error } = await supabase.from('app_users').delete().eq('id', id);
+  if (error) throw error;
 }
 
 // ---------- Registro de actividad ----------
