@@ -96,3 +96,10 @@ Ventas con pago inicial, saldo pendiente, abonos, historial y cambio automatico 
 - Nueva pestaña **Deudas**: cada deuda tiene ahora un botón **Historial** que muestra todos los pagos que se le han hecho (fecha, cuenta de origen, monto y nota), además de lo pagado y lo restante.
 - Aclaración de cómo ya funcionaba el cierre de mes (por si no quedaba claro): en "Cierre de mes", cada pago que registras en "Pagos y ajustes antes del cierre" ya elige la cuenta de origen y la deuda a pagar; al presionar "Cerrar definitivamente", ese monto se descuenta automáticamente de esa cuenta y queda anotado en el historial de esa deuda — no hace falta ningún paso manual aparte.
 - Ahora, además, cada vez que un cierre de mes descuenta dinero de una cuenta para pagar deudas, ese cambio de saldo también queda anotado en el **Historial** de "Banco y Efectivo" de esa cuenta (igual que cuando usas "Actualizar saldo" a mano) — así el historial de saldos queda completo, sin importar si el cambio fue manual o automático por un cierre.
+
+## v3.19.0 — Los pagos de deudas se registran directo en Deudas, ya no en el Cierre de mes
+- Se quitó por completo la sección "Pagos y ajustes antes del cierre" de la pestaña **Cierre de mes**.
+- En su lugar, la pestaña **Deudas** tiene una nueva sección **"Registrar pago a una deuda"**: eliges la deuda, la cuenta de donde va a salir el dinero y el monto. Al presionar "Registrar pago", el dinero se resta al momento de esa cuenta (ya no hay que esperar al cierre de mes) y el pago queda anotado en el historial de esa deuda.
+- Ese cambio de saldo también queda anotado automáticamente en el **Historial** de esa cuenta, en "Banco y Efectivo" — igual que cualquier otro cambio de saldo.
+- La pestaña **Cierre de mes** ahora solo muestra, de forma informativa, los pagos de deudas que ya registraste ese mes (porque ya se descontaron solos de su cuenta) y se enfoca en guardar el resultado final del mes.
+- No requiere ninguna migración nueva — usa las mismas tablas `debts`, `debt_payments` y `account_balance_history` que ya tenías.
