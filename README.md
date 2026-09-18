@@ -48,3 +48,7 @@ Ventas con pago inicial, saldo pendiente, abonos, historial y cambio automatico 
 - La app deja de guardar solo en `localStorage` y pasa a leer/escribir en Supabase, para que los datos se vean iguales en cualquier dispositivo.
 - Se agrega inicio de sesión (correo y contraseña). La primera vez que alguien entra, la app crea su negocio automáticamente.
 - Ver `INSTRUCCIONES_SUPABASE.md` para los pasos de configuración (migración 002, llaves de Supabase, variables de entorno en Cloudflare).
+
+## v3.13.1 — Compatibilidad con el asistente de Cloudflare/Supabase
+- La app ahora acepta también el nombre `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (el que usa el asistente nuevo de Cloudflare), además de `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+- `INSTRUCCIONES_SUPABASE.md` se actualizó explicando dónde pegar exactamente las llaves que muestra ese asistente.

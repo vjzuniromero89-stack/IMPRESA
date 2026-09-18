@@ -16,21 +16,39 @@ cotizaciones, etc.) y — muy importante — corrige los permisos de seguridad
 política de acceso, así que aunque conectáramos la app, Supabase iba a negar
 todo por defecto. Ya quedó arreglado en el archivo 002.
 
-## 2. Saca tus llaves de conexión
+## 2. Saca tus llaves de conexión y ponlas en Cloudflare
 
-1. En Supabase: **Project Settings** (ícono de engrane) → **API**.
-2. Copia:
-   - **Project URL** (algo como `https://xxxxx.supabase.co`)
-   - **anon public key** (o "publishable key" si tu proyecto ya usa el nombre nuevo)
+Si Cloudflare te está guiando con su propio asistente de "Connect to
+Supabase" (el que te muestra un paso con `.env.local` y nombres como
+`NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`), sigue
+ese asistente tal cual — la app ya quedó lista para aceptar ese nombre
+nuevo. Estos son los valores que importan y dónde van:
 
-## 3. Ponlas en Cloudflare
+1. **Project URL**: la ves en el mismo asistente (algo como
+   `https://xxxxx.supabase.co`) o en Supabase → **Project Settings** → **API**.
+   Va en la variable **`NEXT_PUBLIC_SUPABASE_URL`**.
+2. **Llave pública**: en el asistente aparece como `sb_publishable_...`. Va
+   en la variable **`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`** (o
+   `NEXT_PUBLIC_SUPABASE_ANON_KEY`, cualquiera de los dos nombres funciona —
+   no hace falta poner los dos).
+3. Si usaste el botón "Connect to Supabase" de Cloudflare, no tienes que
+   tocar nada más: él mismo las agrega, una como "Variable" y la otra puede
+   quedar marcada como "Secret" (encriptada) — Cloudflare igual la pone a
+   disposición del proceso de compilación, así que funciona igual. Si en
+   cambio las agregas tú a mano, lo más simple y seguro es agregarlas como
+   "Variable" (texto normal) para no depender de eso.
+4. Si en el panel de Cloudflare ya ves un `SUPABASE_URL` y un
+   `SUPABASE_SECRET_KEY` (sin el prefijo `NEXT_PUBLIC_`) agregados como
+   parte de otra integración de Cloudflare: no los borres, pero tampoco son
+   los que la app usa. Puedes dejarlos ahí sin problema.
+5. Guarda los cambios.
 
-1. Entra al panel de Cloudflare → **Workers & Pages** → tu proyecto **impresa**.
-2. Ve a **Settings** → **Environment Variables** (o **Variables and Secrets**).
-3. Agrega estas dos, en **Production** (y también en Preview si usas ese ambiente):
-   - `NEXT_PUBLIC_SUPABASE_URL` = tu Project URL
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` = tu anon/publishable key
-4. Guarda.
+Si en algún punto el asistente no te deja elegir dónde pegar el valor y solo
+te lo genera, también puedes hacerlo a mano: **Workers & Pages** → tu
+proyecto **impresa** → **Settings** → **Variables and Secrets** → **Add
+variable**, y ahí agregas `NEXT_PUBLIC_SUPABASE_URL` y
+`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (o `..._ANON_KEY`) como texto normal
+(no "Encrypt").
 
 Estas variables se necesitan al momento de compilar la app (no solo en
 tiempo de ejecución), así que después de agregarlas vas a necesitar volver a
