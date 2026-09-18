@@ -24,14 +24,15 @@ export default function Home(){
  const [rate,setRateLocal]=useState(37);
  const [initialBase,setInitialBaseLocal]=useState<InitialBase>({confirmed:false,baseUSD:4100,baseC:0});
 
- // Sin inicio de sesión: la app entra directo. Solo se recuerda, en este
- // navegador, cuál "usuario" (nombre) eligió la persona en la pestaña
- // Usuarios, para anotarlo en el registro de actividad.
+ // Inicio de sesión con usuario y contraseña (pestaña Usuarios). Una vez
+ // que alguien entra, este navegador lo recuerda (no hay que volver a
+ // escribir la contraseña cada vez) hasta que presione "Cerrar sesión".
  const [currentUser,setCurrentUserState]=useState<AppUser|null>(null);
  useEffect(()=>{
   try{const raw=localStorage.getItem(CURRENT_USER_KEY);if(raw)setCurrentUserState(JSON.parse(raw))}catch{}
  },[]);
- const setCurrentUser=(u:AppUser)=>{setCurrentUserState(u);try{localStorage.setItem(CURRENT_USER_KEY,JSON.stringify(u))}catch{}};
+ const handleLogin=(u:AppUser)=>{setCurrentUserState(u);try{localStorage.setItem(CURRENT_USER_KEY,JSON.stringify(u))}catch{}};
+ const handleLogout=()=>{setCurrentUserState(null);try{localStorage.removeItem(CURRENT_USER_KEY)}catch{}};
 
  useEffect(()=>{
   if(!supabaseConfigured)return;
@@ -50,7 +51,7 @@ export default function Home(){
  const setRate=(v:number)=>{setRateLocal(v);if(businessId)updateRateRemote(businessId,v).catch(err=>{console.error(err);alert('No se pudo guardar el tipo de cambio en la nube.')})};
  const setInitialBase=(v:InitialBase)=>{setInitialBaseLocal(v);if(businessId&&v.confirmed)confirmInitialBaseRemote(businessId,v.baseC).catch(err=>{console.error(err);alert('No se pudo confirmar la situación inicial en la nube.')})};
 
- const logCtx={userId:currentUser?.id,username:currentUser?.name||''};
+ const logCtx={userId:currentUser?.id,username:currentUser?.username||''};
  const [sales,setSales]=useSalesCloud(businessId,rate,logCtx);
  const [expenses,setExpenses]=useExpensesCloud(businessId,rate,logCtx);
  const [accounts,setAccounts]=useAccountsCloud(businessId,logCtx);
@@ -77,12 +78,13 @@ export default function Home(){
 
  const props={sales,setSales,expenses,setExpenses,accounts,setAccounts,closes,businessId,reloadInventory,monthCloses,addMonthClose,initialBase,setInitialBase,quotes,setQuotes,debts,setDebts,debtPayments,reloadDebtPayments,month,rate,setRate,logCtx};
 
- if(!supabaseConfigured)return <Auth/>;
+ if(!supabaseConfigured)return <Auth businessId={null} onLogin={()=>{}}/>;
  if(bootError)return <div className="loadingScreen">{bootError}</div>;
  if(!businessId||!settingsReady)return <div className="loadingScreen">Preparando tu negocio…</div>;
+ if(!currentUser)return <Auth businessId={businessId} onLogin={handleLogin}/>;
 
- return <div className="app"><aside><div className="brandWrap"><div className="brandMark">I</div><div><div className="brand">IMPRESA</div><div className="sub">Business Management</div></div></div><div className="workspace">OPERACIONES · NICARAGUA</div><nav>{tabs.map(x=><button key={x} className={tab===x?'active':''} onClick={()=>setTab(x)}>{x}</button>)}</nav><div className="sessionFooter"><small>{currentUser?currentUser.name:'Sin usuario elegido'}</small><button className="small" onClick={()=>setTab('Usuarios')}>{currentUser?'Cambiar':'Elegir usuario'}</button></div></aside><main><header><div><div className="eyebrow">IMPRESA / {month}</div><h1>{tab}</h1><p>Centro administrativo y financiero del negocio</p></div><div className="actions"><label className="month"><span>Mes</span><input type="month" value={month} onChange={e=>setMonth(e.target.value)}/></label><button className="btn" onClick={()=>setTab('Gastos')}>+ Gasto</button><button className="btn primary" onClick={()=>setTab('Ventas')}>+ Venta</button></div></header>
- {tab==='Dashboard'?<Dashboard {...props}/>:tab==='Ventas'?<Sales {...props}/>:tab==='Gastos'?<Expenses {...props}/>:tab==='Inventario'?<Inventory {...props}/>:tab==='Banco y Efectivo'?<Accounts {...props}/>:tab==='Contabilidad'?<Accounting {...props}/>:tab==='Cierre de mes'?<MonthClosing {...props}/>:tab==='Deudas'?<Debts {...props}/>:tab==='Cotizaciones'?<Quotes {...props}/>:tab==='Usuarios'?<Users businessId={businessId} currentUser={currentUser} setCurrentUser={setCurrentUser}/>:tab==='Reportes'?<Reports {...props}/>:<Settings {...props}/>}
+ return <div className="app"><aside><div className="brandWrap"><div className="brandMark">I</div><div><div className="brand">IMPRESA</div><div className="sub">Business Management</div></div></div><div className="workspace">OPERACIONES · NICARAGUA</div><nav>{tabs.map(x=><button key={x} className={tab===x?'active':''} onClick={()=>setTab(x)}>{x}</button>)}</nav><div className="sessionFooter"><small>{currentUser.username}</small><button className="small" onClick={handleLogout}>Cerrar sesión</button></div></aside><main><header><div><div className="eyebrow">IMPRESA / {month}</div><h1>{tab}</h1><p>Centro administrativo y financiero del negocio</p></div><div className="actions"><label className="month"><span>Mes</span><input type="month" value={month} onChange={e=>setMonth(e.target.value)}/></label><button className="btn" onClick={()=>setTab('Gastos')}>+ Gasto</button><button className="btn primary" onClick={()=>setTab('Ventas')}>+ Venta</button></div></header>
+ {tab==='Dashboard'?<Dashboard {...props}/>:tab==='Ventas'?<Sales {...props}/>:tab==='Gastos'?<Expenses {...props}/>:tab==='Inventario'?<Inventory {...props}/>:tab==='Banco y Efectivo'?<Accounts {...props}/>:tab==='Contabilidad'?<Accounting {...props}/>:tab==='Cierre de mes'?<MonthClosing {...props}/>:tab==='Deudas'?<Debts {...props}/>:tab==='Cotizaciones'?<Quotes {...props}/>:tab==='Usuarios'?<Users businessId={businessId} currentUser={currentUser}/>:tab==='Reportes'?<Reports {...props}/>:<Settings {...props}/>}
  </main></div>
 }
 function Dashboard({sales,expenses,accounts,closes,monthCloses,month,rate}:any){
