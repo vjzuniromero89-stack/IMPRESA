@@ -248,3 +248,12 @@ td:last-child{white-space:nowrap;min-width:205px}
 .sessionFooter .small{margin-top:0;width:100%}
 aside{display:flex;flex-direction:column}
 aside nav{flex:0 0 auto}
+
+/* v3.15 pestaña Deudas: barra de progreso + insignia Afecta % */
+.debtBarWrap{display:flex;align-items:center;gap:9px;min-width:150px}
+.debtBar{flex:1;height:8px;background:var(--surface-3);border-radius:8px;overflow:hidden}
+.debtBarFill{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-2));border-radius:8px}
+.debtBarWrap span{font-size:10px;font-weight:800;color:var(--text-dim);white-space:nowrap}
+.pill{display:inline-block;font-size:10px;font-weight:800;padding:5px 10px;border-radius:20px;border:1px solid var(--border)}
+.pill.yes{background:var(--success-bg);color:var(--success-text);border-color:var(--success-border)}
+.pill.no{background:var(--surface-3);color:var(--text-dim)}
