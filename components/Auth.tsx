@@ -15,8 +15,9 @@ export default function Auth() {
         <div className="authCard">
           <div className="brandWrap"><div className="brandMark">I</div><div><div className="brand">IMPRESA</div><div className="sub">Business Management</div></div></div>
           <p className="muted" style={{ marginTop: 18 }}>
-            Esta app todavía no tiene configurada la conexión a Supabase. Faltan las variables
-            <code> NEXT_PUBLIC_SUPABASE_URL</code> y <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code>.
+            Esta app todavía no tiene configurada la conexión a Supabase. Falta la variable
+            <code> NEXT_PUBLIC_SUPABASE_URL</code> y la llave
+            <code> NEXT_PUBLIC_SUPABASE_ANON_KEY</code> (o <code>NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY</code>).
           </p>
         </div>
       </div>
