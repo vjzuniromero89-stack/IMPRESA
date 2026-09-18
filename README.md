@@ -121,3 +121,8 @@ Ventas con pago inicial, saldo pendiente, abonos, historial y cambio automatico 
 - Se quitó el cuadro duplicado "Meta inicial" (mostraba lo mismo que "Progreso del valor del negocio").
 - El cuadro que quedó se renombró a **"Valor del Negocio Actual"** y ahora ocupa todo el ancho de la pantalla, más grande, con el círculo de progreso y los datos (base inicial, falta/sobre la base, escala) acomodados uno al lado del otro para que se vea todo dentro del cuadro sin sentirse apretado.
 - "Evolución del valor del negocio" y "Distribución de gastos" quedaron juntos en la fila de abajo.
+
+## v3.22.0 — Borrar líneas del Historial de saldo
+- En "Banco y Efectivo", el Historial de saldo de cada cuenta tiene ahora un botón **Borrar** en cada línea.
+- Borrar una línea solo quita ese registro del historial — no cambia el saldo actual de la cuenta (a diferencia de borrar un pago de deuda, aquí no hay dinero que devolver: es solo un registro de lo que pasó).
+- Requiere correr `migration/008_account_balance_history_delete.sql` — la migración 007 había dejado ese historial a propósito sin permiso de borrar (para que fuera a prueba de manipulación), y esta lo habilita porque ahora se pidió poder corregir líneas mal registradas.

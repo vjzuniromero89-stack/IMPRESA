@@ -4,7 +4,7 @@ import {supabaseConfigured} from '../lib/supabaseClient';
 import Auth from '../components/Auth';
 import Users from '../components/Users';
 import type {Payment,Sale,Expense,Account,InventoryItem,InventoryClose,DebtPayment,MonthClose,Quote,InitialBase,AppUser,Debt,DebtPaymentRecord,AccountBalanceEntry} from '../lib/db';
-import {uid,ensureBusiness,fetchBusinessSettings,updateRateRemote,confirmInitialBaseRemote,useSalesCloud,useExpensesCloud,useAccountsCloud,useQuotesCloud,useMonthClosesCloud,useDebtsCloud,loadInventory,addInventoryItemRemote,deleteInventoryItemRemote,deleteInventoryMonthRemote,logActivity,loadDebtPayments,addDebtPaymentRemote,removeDebtPaymentRemote,loadAccountBalanceHistory,addAccountBalanceHistoryRemote} from '../lib/db';
+import {uid,ensureBusiness,fetchBusinessSettings,updateRateRemote,confirmInitialBaseRemote,useSalesCloud,useExpensesCloud,useAccountsCloud,useQuotesCloud,useMonthClosesCloud,useDebtsCloud,loadInventory,addInventoryItemRemote,deleteInventoryItemRemote,deleteInventoryMonthRemote,logActivity,loadDebtPayments,addDebtPaymentRemote,removeDebtPaymentRemote,loadAccountBalanceHistory,addAccountBalanceHistoryRemote,removeAccountBalanceHistoryRemote} from '../lib/db';
 
 const CURRENT_USER_KEY='impresa_current_user';
 
@@ -140,13 +140,20 @@ function Accounts({accounts,setAccounts,rate,businessId,logCtx,accountHistory,re
   setAccounts(accounts.map((z:Account)=>z.id===a.id?{...z,balance:newBalance,updated:today()}:z));
  };
  const toggleHistory=(a:Account)=>setHistoryAccountId(historyAccountId===a.id?null:a.id);
+ const removeHistoryEntry=async(h:AccountBalanceEntry)=>{
+  if(!confirm(`¿Borrar esta línea del historial (${money(h.previousBalance,h.currency)} → ${money(h.newBalance,h.currency)})? Esto solo borra el registro, no cambia el saldo actual de la cuenta.`))return;
+  try{
+   await removeAccountBalanceHistoryRemote(h.id);
+   reloadAccountHistory&&reloadAccountHistory();
+  }catch(err){console.error('IMPRESA: no se pudo borrar la línea del historial',err);alert('No se pudo borrar en la nube. Revisa que ya corriste la migración 008 e inténtalo de nuevo.')}
+ };
  return <><div className="cards">{accounts.map((a:Account)=>{const nio=a.currency==='US$'?a.balance*rate:a.balance;return <div className="card account" key={a.id}><span>{a.name} · {a.currency}</span><strong>{money(a.balance,a.currency)}</strong><small>{dual(nio,rate)} · Actualizado {a.updated}</small><div className="actions"><button className="small" onClick={()=>update(a)}>Actualizar saldo</button><button className="small" onClick={()=>toggleHistory(a)}>{historyAccountId===a.id?'Cerrar':'Historial'}</button><button className="dangerSmall" onClick={()=>{if(confirm(`¿Borrar la cuenta ${a.name}?`))setAccounts(accounts.filter((z:Account)=>z.id!==a.id))}}>Borrar</button></div></div>})}</div>
  {historyAccountId&&(()=>{
   const a=(accounts as Account[]).find(x=>x.id===historyAccountId);
   if(!a)return null;
   const entries=((accountHistory as AccountBalanceEntry[])||[]).filter(h=>h.accountId===a.id);
   return <Panel title={`Historial de saldo · ${a.name}`}>
-   {!entries.length?<Empty text="Esta cuenta todavía no tiene cambios de saldo registrados."/>:<Table heads={['Fecha','Saldo anterior','Saldo nuevo','Usuario']} rows={entries.map(h=>[String(h.at).slice(0,16).replace('T',' '),money(h.previousBalance,h.currency),money(h.newBalance,h.currency),h.changedBy||'—'])}/>}
+   {!entries.length?<Empty text="Esta cuenta todavía no tiene cambios de saldo registrados."/>:<Table heads={['Fecha','Saldo anterior','Saldo nuevo','Usuario','Acción']} rows={entries.map(h=>[String(h.at).slice(0,16).replace('T',' '),money(h.previousBalance,h.currency),money(h.newBalance,h.currency),h.changedBy||'—',<button className="dangerSmall" onClick={()=>removeHistoryEntry(h)}>Borrar</button>])}/>}
   </Panel>
  })()}
  <Panel title="Agregar cuenta o caja"><div className="form inline"><Input l="Nombre (ej. BAC Dólares)" v={f.name} s={v=>setF({...f,name:v})}/><Select l="Moneda" v={f.currency} s={v=>setF({...f,currency:v})} opts={['C$','US$']}/><button className="btn primary" onClick={add}>Agregar cuenta</button></div><div className="note">Tipo de cambio actual del sistema: C${rate.toFixed(2)} = US$1.00. El resumen convierte automáticamente todas las cuentas. Cada vez que actualizas el saldo de una cuenta, el saldo anterior queda guardado en su "Historial".</div></Panel></>}

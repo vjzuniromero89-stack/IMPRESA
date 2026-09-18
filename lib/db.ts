@@ -217,6 +217,10 @@ export async function loadAccountBalanceHistory(businessId: string): Promise<Acc
   if (error) throw error;
   return (data || []).map((r: any) => ({ id: r.id, accountId: r.account_id, accountName: r.account_name || '', currency: fromDbCurrency(r.currency), previousBalance: Number(r.previous_balance) || 0, newBalance: Number(r.new_balance) || 0, changedBy: r.changed_by || undefined, at: r.created_at }));
 }
+export async function removeAccountBalanceHistoryRemote(id: string) {
+  const { error } = await supabase.from('account_balance_history').delete().eq('id', id);
+  if (error) throw error;
+}
 
 async function loadQuotes(businessId: string): Promise<Quote[]> {
   const { data, error } = await supabase.from('quotes').select('*').eq('business_id', businessId).order('created_at', { ascending: true });
