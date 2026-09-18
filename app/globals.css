@@ -141,6 +141,12 @@ input,select,textarea{border:1px solid var(--border);border-radius:9px;padding:1
 input::placeholder,textarea::placeholder{color:var(--text-faint)}
 input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 select option{background:var(--surface-2);color:var(--text)}
+.moneyField{display:flex;align-items:stretch;border:1px solid var(--border);border-radius:9px;background:var(--surface-2);overflow:hidden}
+.moneyField:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.moneyField input{flex:1;min-width:0;border:0;border-radius:0;background:transparent}
+.moneyField input:focus{outline:none;box-shadow:none}
+.moneyField select{width:auto;flex:0 0 auto;border:0;border-left:1px solid var(--border);border-radius:0;background:var(--surface-3);color:var(--text);font-weight:800;padding:10px 10px;cursor:pointer}
+.moneyField select:focus{outline:none;box-shadow:none}
 input[type="date"]::-webkit-calendar-picker-indicator,input[type="month"]::-webkit-calendar-picker-indicator{filter:invert(1) brightness(1.4);cursor:pointer}
 textarea{min-height:100px;resize:vertical}
 .stat{display:flex;justify-content:space-between;gap:15px;padding:11px 0;border-bottom:1px solid var(--border-soft);font-size:12px}
