@@ -14,12 +14,16 @@ puedes hacer porque son tus cuentas.
    problema — está hecha para no duplicar nada.)
 3. Haz lo mismo con `migration/003_username_login_and_activity_log.sql`
    (nueva): ábrela, copia todo, pégala en otra consulta nueva y **Run**.
+4. Y con `migration/004_debts.sql` (nueva): igual, cópiala completa en otra
+   consulta nueva y **Run**.
 
 La 002 agrega las columnas que faltaban (cliente en ventas, abonos,
 cotizaciones, etc.) y corrige los permisos de seguridad (RLS) — la
 migración 001 había dejado casi todas las tablas sin ninguna política de
 acceso. La 003 agrega el nombre de usuario, el permiso para que el dueño
 cree otros usuarios, y la tabla donde se guarda el registro de actividad.
+La 004 crea las tablas de la nueva pestaña **Deudas** (la lista de deudas y
+sus pagos).
 
 ## 1.1 Muy importante: desactiva "Confirm email"
 
@@ -95,6 +99,12 @@ desplegar (el siguiente paso ya lo hace).
    usuario, contraseña y rol. No necesita correo ni pasar por Supabase.
    Cada cosa que ese usuario agregue, edite o borre va a quedar anotada en
    esa misma pestaña, con su nombre y la hora.
+7. Para tus deudas (máquinas, préstamos, liquidaciones, etc.), ve a la
+   pestaña **Deudas** y agrégalas ahí, con el total y, si ya habías pagado
+   algo antes, ponlo en "Ya pagado antes". Desde ese momento, cuando
+   registres un pago en **Cierre de mes** vas a poder elegir a cuál de esas
+   deudas pertenece, y el "Pagado"/"Restante"/"% Pagado" de esa deuda se
+   actualiza solo.
 
 ## Importante: tus datos actuales no se mueven solos
 

@@ -58,3 +58,9 @@ Ventas con pago inicial, saldo pendiente, abonos, historial y cambio automatico 
 - Nueva pestaña **Usuarios**: el dueño puede crear más usuarios (por ejemplo, para sus empleados) directamente desde la app, sin volver a entrar a Supabase.
 - Toda acción de agregar, editar o borrar (ventas, gastos, cuentas, inventario, cotizaciones, cierres de mes) ahora queda anotada en un registro de actividad, visible en la pestaña Usuarios, con quién la hizo y cuándo.
 - Requiere correr `migration/003_username_login_and_activity_log.sql` y, muy importante, **desactivar "Confirm email"** en Supabase (Authentication → Sign In / Providers → Email) — ver `INSTRUCCIONES_SUPABASE.md`.
+
+## v3.15 — Pestaña Deudas
+- Nueva pestaña **Deudas**: lista cada deuda (descripción, total, pagado, restante, % pagado con barra de progreso, y si "Afecta %" con Sí/No).
+- Se puede registrar cuánto se había pagado antes de usar esta pestaña ("Ya pagado antes").
+- En **Cierre de mes**, el formulario "Pagos y ajustes antes del cierre" ahora deja elegir a cuál deuda pertenece cada pago. Al cerrar el mes, ese pago se descuenta automáticamente del restante de la deuda y aparece en su historial.
+- Requiere correr `migration/004_debts.sql`.
