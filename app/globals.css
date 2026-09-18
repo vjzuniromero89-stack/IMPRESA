@@ -232,6 +232,23 @@ td:last-child{white-space:nowrap;min-width:205px}
 .businessProgress.compact .progressRing strong{font-size:15px}
 @media(max-width:720px){.progressRing{width:170px;height:170px}.progressRing>div{width:118px;height:118px}.progressMeta{grid-template-columns:1fr 1fr}}
 
+/* v3.21 tarjeta "Valor del Negocio Actual" más grande en el Dashboard */
+.progressDetails{display:contents}
+.businessProgress.large{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:36px;padding:16px 12px;justify-items:stretch}
+.businessProgress.large .progressRing{width:240px;height:240px;justify-self:center}
+.businessProgress.large .progressRing>div{width:168px;height:168px}
+.businessProgress.large .progressRing strong{font-size:26px}
+.businessProgress.large .progressRing span{font-size:12px}
+.businessProgress.large .progressRing b{font-size:15px}
+.businessProgress.large .progressDetails{display:flex;flex-direction:column;gap:16px;width:100%}
+.businessProgress.large .progressMeta{grid-template-columns:1fr 1fr}
+.businessProgress.large .progressMeta>div{padding:16px}
+.businessProgress.large .progressMeta span{font-size:11px}
+.businessProgress.large .progressMeta strong{font-size:19px;margin-top:6px}
+.businessProgress.large .progressScale{font-size:11px;padding-top:12px}
+.businessProgress.large .progressExceeded{font-size:12px;padding:12px 14px}
+@media(max-width:860px){.businessProgress.large{grid-template-columns:1fr;justify-items:center}}
+
 /* v3.13 login y estados de carga */
 .loadingScreen{min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--text-dim);font-size:14px}
 .authWrap{min-height:100vh;display:grid;place-items:center;background:var(--bg);padding:24px}

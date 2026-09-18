@@ -116,3 +116,8 @@ Ventas con pago inicial, saldo pendiente, abonos, historial y cambio automatico 
 - En **Deudas**, el Historial de pagos de cada deuda tiene ahora un botón **Borrar** en cada pago.
 - Al borrar un pago, el dinero se le devuelve automáticamente a la cuenta de donde había salido (como si el pago nunca hubiera pasado), y esa devolución también queda anotada en el Historial de saldo de esa cuenta. Si el pago no estaba ligado a ninguna cuenta (por ejemplo, un "pago inicial" registrado al crear la deuda), solo se borra el registro, sin tocar ninguna cuenta — la app te avisa cuál de los dos casos es antes de confirmar.
 - No requiere ninguna migración nueva.
+
+## v3.21.0 — Dashboard: tarjeta "Valor del Negocio Actual" más grande
+- Se quitó el cuadro duplicado "Meta inicial" (mostraba lo mismo que "Progreso del valor del negocio").
+- El cuadro que quedó se renombró a **"Valor del Negocio Actual"** y ahora ocupa todo el ancho de la pantalla, más grande, con el círculo de progreso y los datos (base inicial, falta/sobre la base, escala) acomodados uno al lado del otro para que se vea todo dentro del cuadro sin sentirse apretado.
+- "Evolución del valor del negocio" y "Distribución de gastos" quedaron juntos en la fila de abajo.
