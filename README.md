@@ -108,3 +108,6 @@ Ventas con pago inicial, saldo pendiente, abonos, historial y cambio automatico 
 - Se quitó el cuadro fijo de "Registrar pago a una deuda" de abajo de la lista.
 - Ahora cada deuda tiene, junto a "Borrar", un botón **Registrar pago**. Al presionarlo se abre justo debajo de la lista un panel con el formulario (cuenta de origen, monto, nota) para esa deuda, y debajo del formulario su **Historial de pagos** completo (fecha, cuenta, monto y nota) — todo en un solo lugar.
 - El botón "Historial" aparte se quitó porque ahora el historial siempre aparece junto al formulario de pago.
+
+## v3.19.2 — El Historial de saldo también se muestra abajo, no en una ventana emergente
+- En "Banco y Efectivo", el botón **Historial** de cada cuenta ya no abre una ventana emergente del navegador: ahora abre, justo debajo de las tarjetas de cuentas, una tabla con el historial de saldo de esa cuenta (fecha, saldo anterior, saldo nuevo y quién lo hizo).

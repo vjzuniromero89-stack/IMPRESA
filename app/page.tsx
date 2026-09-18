@@ -124,6 +124,7 @@ function Sales({sales,setSales,month,rate}:any){
 function Expenses({expenses,setExpenses,month,rate}:any){const [f,setF]=useState({date:today(),category:'Operativo',description:'',amount:'',currency:'C$'});const entered=+f.amount||0,nio=toNio(entered,f.currency as 'C$'|'US$',rate);const add=()=>{if(!f.description||!entered)return alert('Completa descripción y monto.');setExpenses([...expenses,{id:uid(),date:f.date,category:f.category,description:f.description,amount:nio,currency:f.currency as 'C$'|'US$',enteredAmount:entered}]);setF({...f,description:'',amount:''})};return <Panel title="Registro de gastos"><div className="form grid"><Input l="Fecha" v={f.date} s={v=>setF({...f,date:v})} type="date"/><Select l="Categoría" v={f.category} s={v=>setF({...f,category:v})} opts={['Materiales','Operativo','Servicios','Transporte','Nómina','Publicidad','Equipos','Otro']}/><Input l="Descripción" v={f.description} s={v=>setF({...f,description:v})}/><MoneyInput l="Monto" v={f.amount} s={v=>setF({...f,amount:v})} c={f.currency as 'C$'|'US$'} sc={c=>setF({...f,currency:c})}/><div className="conversion"><span>Conversión automática</span><b>{dual(nio,rate)}</b></div><button className="btn primary" onClick={add}>Guardar gasto</button></div><Table heads={['Fecha','Categoría','Descripción','C$','US$','Acción']} rows={expenses.filter((x:Expense)=>x.date.startsWith(month)).slice().reverse().map((x:Expense)=>[x.date,x.category,x.description,money(x.amount,'C$'),money(rate>0?x.amount/rate:0,'US$'),<button className="dangerSmall" onClick={()=>{if(confirm('¿Borrar este gasto?'))setExpenses(expenses.filter((z:Expense)=>z.id!==x.id))}}>Borrar</button>])}/></Panel>}
 function Accounts({accounts,setAccounts,rate,businessId,logCtx,accountHistory,reloadAccountHistory}:any){
  const [f,setF]=useState({name:'',currency:'C$'});
+ const [historyAccountId,setHistoryAccountId]=useState<string|null>(null);
  const add=()=>{if(!f.name)return;setAccounts([...accounts,{id:uid(),name:f.name,currency:f.currency as 'C$'|'US$',balance:0,updated:today()}]);setF({...f,name:''})};
  const update=async(a:Account)=>{
   const x=prompt(`Saldo actual de ${a.name} (${a.currency})`,String(a.balance));
@@ -138,12 +139,17 @@ function Accounts({accounts,setAccounts,rate,businessId,logCtx,accountHistory,re
   }
   setAccounts(accounts.map((z:Account)=>z.id===a.id?{...z,balance:newBalance,updated:today()}:z));
  };
- const history=(a:Account)=>{
-  const entries=(accountHistory||[]).filter((h:AccountBalanceEntry)=>h.accountId===a.id);
-  if(!entries.length)return alert('Esta cuenta todavía no tiene cambios de saldo registrados.');
-  alert(`Historial de saldo · ${a.name}\n\n`+entries.map((h:AccountBalanceEntry)=>`${String(h.at).slice(0,16).replace('T',' ')} — ${money(h.previousBalance,h.currency)} → ${money(h.newBalance,h.currency)}${h.changedBy?' · '+h.changedBy:''}`).join('\n'));
- };
- return <><div className="cards">{accounts.map((a:Account)=>{const nio=a.currency==='US$'?a.balance*rate:a.balance;return <div className="card account" key={a.id}><span>{a.name} · {a.currency}</span><strong>{money(a.balance,a.currency)}</strong><small>{dual(nio,rate)} · Actualizado {a.updated}</small><div className="actions"><button className="small" onClick={()=>update(a)}>Actualizar saldo</button><button className="small" onClick={()=>history(a)}>Historial</button><button className="dangerSmall" onClick={()=>{if(confirm(`¿Borrar la cuenta ${a.name}?`))setAccounts(accounts.filter((z:Account)=>z.id!==a.id))}}>Borrar</button></div></div>})}</div><Panel title="Agregar cuenta o caja"><div className="form inline"><Input l="Nombre (ej. BAC Dólares)" v={f.name} s={v=>setF({...f,name:v})}/><Select l="Moneda" v={f.currency} s={v=>setF({...f,currency:v})} opts={['C$','US$']}/><button className="btn primary" onClick={add}>Agregar cuenta</button></div><div className="note">Tipo de cambio actual del sistema: C${rate.toFixed(2)} = US$1.00. El resumen convierte automáticamente todas las cuentas. Cada vez que actualizas el saldo de una cuenta, el saldo anterior queda guardado en su "Historial".</div></Panel></>}
+ const toggleHistory=(a:Account)=>setHistoryAccountId(historyAccountId===a.id?null:a.id);
+ return <><div className="cards">{accounts.map((a:Account)=>{const nio=a.currency==='US$'?a.balance*rate:a.balance;return <div className="card account" key={a.id}><span>{a.name} · {a.currency}</span><strong>{money(a.balance,a.currency)}</strong><small>{dual(nio,rate)} · Actualizado {a.updated}</small><div className="actions"><button className="small" onClick={()=>update(a)}>Actualizar saldo</button><button className="small" onClick={()=>toggleHistory(a)}>{historyAccountId===a.id?'Cerrar':'Historial'}</button><button className="dangerSmall" onClick={()=>{if(confirm(`¿Borrar la cuenta ${a.name}?`))setAccounts(accounts.filter((z:Account)=>z.id!==a.id))}}>Borrar</button></div></div>})}</div>
+ {historyAccountId&&(()=>{
+  const a=(accounts as Account[]).find(x=>x.id===historyAccountId);
+  if(!a)return null;
+  const entries=((accountHistory as AccountBalanceEntry[])||[]).filter(h=>h.accountId===a.id);
+  return <Panel title={`Historial de saldo · ${a.name}`}>
+   {!entries.length?<Empty text="Esta cuenta todavía no tiene cambios de saldo registrados."/>:<Table heads={['Fecha','Saldo anterior','Saldo nuevo','Usuario']} rows={entries.map(h=>[String(h.at).slice(0,16).replace('T',' '),money(h.previousBalance,h.currency),money(h.newBalance,h.currency),h.changedBy||'—'])}/>}
+  </Panel>
+ })()}
+ <Panel title="Agregar cuenta o caja"><div className="form inline"><Input l="Nombre (ej. BAC Dólares)" v={f.name} s={v=>setF({...f,name:v})}/><Select l="Moneda" v={f.currency} s={v=>setF({...f,currency:v})} opts={['C$','US$']}/><button className="btn primary" onClick={add}>Agregar cuenta</button></div><div className="note">Tipo de cambio actual del sistema: C${rate.toFixed(2)} = US$1.00. El resumen convierte automáticamente todas las cuentas. Cada vez que actualizas el saldo de una cuenta, el saldo anterior queda guardado en su "Historial".</div></Panel></>}
 function Inventory({closes,businessId,reloadInventory,monthCloses,month,rate,logCtx}:any){
  const existing=[...closes].reverse().find((x:InventoryClose)=>x.month===month);
  const items=existing?.items||[];
