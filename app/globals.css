@@ -294,3 +294,28 @@ label{min-width:0}label span{font-size:12px;color:#364e6c}input,select,textarea{
 .tablewrap{border:1px solid #d6e1ef;border-radius:10px;max-width:100%;background:#fff}th{padding:13px 12px;background:#e3ecf9;color:#3d5676;font-size:10px;letter-spacing:.65px;white-space:nowrap;border-bottom:1px solid #c9d8ec}td{padding:13px 12px;font-size:12px;font-variant-numeric:tabular-nums}tbody tr:nth-child(even) td{background:#f3f7fc}tbody tr:hover td{background:#e8f0fe}tbody tr.salePending td{background:#fff7e5}tbody tr.salePending:hover td{background:#ffefd0}td:last-child{min-width:0}.statusBadge{display:inline-flex;padding:4px 9px;border-radius:20px;font-size:10px;font-weight:800;border:1px solid;white-space:nowrap}.statusBadge.paid{color:#14704e;background:#ddf4e9;border-color:#b6e1cb}.statusBadge.pending{color:#8a5a13;background:#fff0cf;border-color:#ecd39e}.statusBadge.partial{color:#2856a0;background:#e2edff;border-color:#bfd3f2}.empty{background:repeating-linear-gradient(135deg,#f5f8fd,#f5f8fd 10px,#f0f5fc 10px,#f0f5fc 20px);padding:28px;color:#526a89}.kanban section{border:1px solid #cad8ea;background:#e7effa;border-top:3px solid #4c7dc9}.kanban h3{padding:8px;border-bottom:1px solid #c4d5ec}.authWrap{background:radial-gradient(ellipse at 25% 20%,#315f91,#122c47 75%)}.authCard{border-top:4px solid #4387e9;box-shadow:0 25px 80px #071a3650}.authCard .brand{color:#173959}.authCard .sub{color:#516985}
 @media(min-width:1600px){main{padding:32px 40px}}@media(max-width:1200px){header{align-items:flex-start}.hero{gap:20px;flex-wrap:wrap}.kpi{align-items:flex-start}}@media(max-width:720px){aside{width:100%;padding:16px;position:static}.brandWrap{padding:0 0 12px}.brandMark{width:36px;height:36px}.brand{font-size:20px}nav{gap:7px;margin-top:12px;padding-bottom:6px}nav button{min-height:42px;flex:0 0 auto;padding:7px 11px}.navIcon{flex-basis:23px;width:23px}.sessionFooter{flex-direction:row;align-items:center;justify-content:space-between;margin-top:10px;padding:10px 0 0}.sessionFooter .small{width:auto}.app main{padding:16px 12px 30px}header{padding:17px;gap:18px;border-radius:12px}.pageHeading{gap:12px;width:100%}.pageIcon{width:43px;height:43px;flex-basis:43px}.pageIcon svg{width:22px;height:22px}h1{font-size:23px}header .actions{display:grid;grid-template-columns:1fr 1fr;width:100%;gap:9px}header .month{grid-column:1/-1;width:100%}.panel{padding:14px}.panel h2{font-size:13px;padding:10px}.hero{padding:20px}.heroValue strong{font-size:20px}.kpi,.card{padding:15px}.kpi strong{font-size:17px}.form.grid{gap:14px}.form .actions{width:100%;white-space:normal}.form .actions button{flex:1}.capitalCompare{grid-template-columns:1fr;gap:12px}.capitalCompare strong{font-size:18px}.recordCards{grid-template-columns:1fr}.accountingHead{gap:12px}.paymentSummary .card strong{font-size:17px}.businessProgress.large{padding:8px 0;gap:20px}.businessProgress.large .progressRing{width:210px;height:210px}.businessProgress.large .progressRing>div{width:150px;height:150px}.businessProgress.large .progressMeta strong{font-size:16px}.exerciseResult{gap:10px;flex-wrap:wrap}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important}}
+
+/* v3.25 — separación visual "futurista" entre secciones (Dashboard y demás pestañas) */
+.panel{position:relative;overflow:hidden;background:linear-gradient(165deg,#ffffff 0%,#f6f9ff 100%);border:1px solid #cdddf0;box-shadow:0 12px 30px rgba(21,55,99,.11),0 2px 10px rgba(21,55,99,.06);transition:box-shadow .2s ease,transform .2s ease}
+.panel:before{content:"";position:absolute;inset:0 0 auto 0;height:3px;background:linear-gradient(90deg,#2863cd,#4fd1c5,#2863cd);background-size:200% 100%;opacity:.95}
+.panel:after{content:"";position:absolute;width:160px;height:160px;border-radius:50%;right:-60px;top:-70px;background:radial-gradient(circle,rgba(40,99,205,.10),transparent 72%);pointer-events:none;z-index:0}
+.panel>*{position:relative;z-index:1}
+.panel:hover{box-shadow:0 18px 42px rgba(21,55,99,.16),0 4px 16px rgba(21,55,99,.08)}
+.dashboardGrid,.statementGrid,.cols{gap:22px}
+.dashboardGrid .panel,.statementGrid .panel,.cols .panel{margin-bottom:0}
+main>.panel,main>.kpis,main>.cards,main>.dashboardGrid,main>.statementGrid,main>.cols{margin-bottom:22px}
+
+/* Método de pago: insignias de color en Ventas */
+.methodBadge{display:inline-flex;padding:4px 10px;border-radius:20px;font-size:10px;font-weight:800;border:1px solid;white-space:nowrap}
+.methodBadge.transfer{color:#1d4ea8;background:#e0ebff;border-color:#b7cdf3}
+.methodBadge.cash{color:#0f7a52;background:#dcf5ea;border-color:#aee0c6}
+.methodBadge.unclassified{color:#5a6e85;background:#eef2f7;border-color:#d6dfea}
+
+/* Ventas Transferencia Efectivo: cada grupo en su propio cuadro con acento de color */
+.methodSection:before{background:none}
+.methodSection.transfer{border-top:3px solid #2863cd}
+.methodSection.cash{border-top:3px solid #12a56f}
+.methodSection.unclassified{border-top:3px solid #8a97a8}
+.methodSection.transfer h2{border-left-color:#2863cd}
+.methodSection.cash h2{border-left-color:#12a56f}
+.methodSection.unclassified h2{border-left-color:#8a97a8}

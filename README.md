@@ -126,3 +126,12 @@ Ventas con pago inicial, saldo pendiente, abonos, historial y cambio automatico 
 - En "Banco y Efectivo", el Historial de saldo de cada cuenta tiene ahora un botón **Borrar** en cada línea.
 - Borrar una línea solo quita ese registro del historial — no cambia el saldo actual de la cuenta (a diferencia de borrar un pago de deuda, aquí no hay dinero que devolver: es solo un registro de lo que pasó).
 - Requiere correr `migration/008_account_balance_history_delete.sql` — la migración 007 había dejado ese historial a propósito sin permiso de borrar (para que fuera a prueba de manipulación), y esta lo habilita porque ahora se pidió poder corregir líneas mal registradas.
+
+## v3.25.0 — Separación visual "futurista" y colores por método de pago
+Esta actualización parte del ZIP `impresa-main 2.zip` (v3.24.0, con tema claro, edición de ventas/gastos y la pestaña "Ventas Transferencia Efectivo").
+
+- **Ventas Transferencia Efectivo**: se eliminaron las tablas "Pagos recibidos · Transferencia" y "Pagos recibidos · Efectivo" (y también la de "Sin clasificar") que aparecían vacías o con detalle repetido. Ahora cada grupo solo muestra su tabla de ventas ("Transferencia · X ventas", "Efectivo · X ventas", "Sin clasificar · X ventas"), cada una en su propio cuadro con un borde de color distinto (azul para Transferencia, verde para Efectivo, gris para Sin clasificar) para que se vea claramente separada del resto. Las tarjetas resumen de arriba (totales) no se tocaron.
+- **Ventas**: la columna "Método" ahora muestra una etiqueta de color en vez de texto plano — azul para Transferencia, verde para Efectivo, gris para Sin clasificar — igual que los estados "Pagada/Pendiente/Pago parcial".
+- **Todas las pestañas**: los cuadros (paneles) de toda la aplicación —Dashboard incluido— ahora tienen más separación entre sí: sombra más marcada, un borde de color en la parte de arriba y más espacio entre cuadros, para que cada sección se distinga claramente en vez de verse todo junto sobre fondo blanco. Esto no cambia ningún dato ni cálculo, solo la apariencia.
+
+No requiere ninguna migración nueva — son cambios de interfaz (componentes y estilos), no de base de datos.
