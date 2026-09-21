@@ -14,6 +14,8 @@ const paid=(sale:Sale)=>sale.paidAmount??(sale.status==='Pagada'?sale.amount:0);
 const status=(total:number,value:number)=>value<=0?'Pendiente':value>=total?'Pagada':'Pago parcial';
 const round=(n:number)=>Math.round((n+Number.EPSILON)*100)/100;
 const convert=(value:string,currency:Currency,rate:number)=>round(Number(value)*(currency==='US$'?rate:1));
+// Muestra el mensaje del error si trae uno útil (por ejemplo, avisando qué migración de Supabase falta correr); si no, el mensaje genérico.
+const errMsg=(err:unknown,fallback:string)=>(err instanceof Error&&err.message)?err.message:fallback;
 const DEFAULT_METHODS:PaymentMethod[]=['Transferencia','Efectivo'];
 function Field({label,children}:{label:ReactNode;children:ReactNode}){return <label><span>{label}</span>{children}</label>}
 function Method({value,onChange,methods,onAdd,onRemove,allowEmpty=false}:{value:string;onChange:(v:PaymentMethod)=>void;methods:string[];onAdd?:()=>void;onRemove?:(name:string)=>void|Promise<void>;allowEmpty?:boolean}){
@@ -37,7 +39,7 @@ export function Sales({sales,setSales,month,rate,paymentMethods,addPaymentMethod
   if(!name||!name.trim())return null;
   if(!addPaymentMethod){alert('No se pudo guardar el nuevo método de pago.');return null}
   try{await addPaymentMethod(name.trim());return name.trim()}
-  catch(err){console.error(err);alert('No se pudo guardar el nuevo método de pago en la nube. Inténtalo de nuevo.');return null}
+  catch(err){console.error(err);alert(errMsg(err,'No se pudo guardar el nuevo método de pago en la nube. Inténtalo de nuevo.'));return null}
  };
  const handleAddMethod=async()=>{const name=await promptNewMethod();if(name)setF(prev=>({...prev,paymentMethod:name}))};
  const handleAddMethodForPayment=async()=>{const name=await promptNewMethod();if(name)setPaymentMethod(name)};
@@ -47,7 +49,7 @@ export function Sales({sales,setSales,month,rate,paymentMethods,addPaymentMethod
    await removePaymentMethod(name);
    setF(prev=>prev.paymentMethod===name?{...prev,paymentMethod:''}:prev);
    setPaymentMethod(prev=>prev===name?(methods.find(m=>m!==name)||'Efectivo'):prev);
-  }catch(err){console.error(err);alert('No se pudo borrar el método de pago en la nube. Inténtalo de nuevo.')}
+  }catch(err){console.error(err);alert(errMsg(err,'No se pudo borrar el método de pago en la nube. Inténtalo de nuevo.'))}
  };
  const visible=sales.filter(s=>s.date.startsWith(month)).slice().sort((a,b)=>b.date.localeCompare(a.date));
  const originalEntered=editing?.enteredAmount??(editing?editing.amount/(editing.currency==='US$'?rate:1):0);
@@ -88,18 +90,34 @@ export function Sales({sales,setSales,month,rate,paymentMethods,addPaymentMethod
  </>;
 }
 
-export function Expenses({expenses,setExpenses,month,rate}:{expenses:Expense[];setExpenses:Setter<Expense>;month:string;rate:number}){
- const empty=()=>({date:today(),category:'Operativo',description:'',amount:'',currency:'C$' as Currency});
+const DEFAULT_EXPENSE_CATEGORIES=['Materiales','Operativo','Servicios','Transporte','Nómina','Publicidad','Equipos','Otro'];
+export function Expenses({expenses,setExpenses,month,rate,expenseCategories,addExpenseCategory,removeExpenseCategory}:{expenses:Expense[];setExpenses:Setter<Expense>;month:string;rate:number;expenseCategories?:string[];addExpenseCategory?:(name:string)=>Promise<void>;removeExpenseCategory?:(name:string)=>Promise<void>}){
+ const categories=(expenseCategories&&expenseCategories.length)?expenseCategories:DEFAULT_EXPENSE_CATEGORIES;
+ const empty=()=>({date:today(),category:categories[0]||'Operativo',description:'',amount:'',currency:'C$' as Currency});
  const [f,setF]=useState(empty),[editing,setEditing]=useState<Expense|null>(null),[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[error,setError]=useState(false);const editor=useRef<HTMLDivElement>(null);
  const reset=()=>{setEditing(null);setF(empty())};
  const edit=(x:Expense)=>{setEditing(x);setF({date:x.date,category:x.category,description:x.description,amount:String(x.enteredAmount??x.amount/(x.currency==='US$'?rate:1)),currency:x.currency||'C$'});setMessage('');editor.current?.scrollIntoView({behavior:'smooth'})};
+ const handleAddCategory=async()=>{
+  const name=prompt('Nombre de la nueva categoría de gasto:');
+  if(!name||!name.trim())return;
+  if(!addExpenseCategory){alert('No se pudo guardar la nueva categoría.');return}
+  try{await addExpenseCategory(name.trim());setF(prev=>({...prev,category:name.trim()}))}
+  catch(err){console.error(err);alert(errMsg(err,'No se pudo guardar la nueva categoría en la nube. Inténtalo de nuevo.'))}
+ };
+ const handleRemoveCategoryItem=async(name:string)=>{
+  if(!removeExpenseCategory){alert('No se pudo borrar la categoría.');return}
+  try{
+   await removeExpenseCategory(name);
+   setF(prev=>prev.category===name?{...prev,category:categories.filter(c=>c!==name)[0]||''}:prev);
+  }catch(err){console.error(err);alert(errMsg(err,'No se pudo borrar la categoría en la nube. Inténtalo de nuevo.'))}
+ };
  const save=async(e:FormEvent)=>{e.preventDefault();if(busy)return;const original=editing?.enteredAmount??(editing?editing.amount/(editing.currency==='US$'?rate:1):0);const amount=editing&&Number(f.amount)===original&&f.currency===(editing.currency||'C$')?editing.amount:convert(f.amount,f.currency,rate);
   if(!f.description.trim()||!f.date||!Number.isFinite(amount)||amount<=0||rate<=0){setError(true);setMessage('Completa fecha, descripción y un importe válido mayor que cero.');return}
   const row:Expense={id:editing?.id||uid(),...f,description:f.description.trim(),amount,enteredAmount:Number(f.amount)};setBusy(true);try{await setExpenses(editing?expenses.map(x=>x.id===editing.id?row:x):[...expenses,row]);setError(false);setMessage(editing?'Gasto actualizado.':'Gasto registrado.');reset()}catch{setError(true);setMessage('No se pudo guardar el gasto.')}finally{setBusy(false)}
  };
  const remove=async(id:string)=>{if(!confirm('¿Borrar este gasto?'))return;setBusy(true);try{await setExpenses(expenses.filter(x=>x.id!==id));if(editing?.id===id)reset();setError(false);setMessage('Gasto eliminado.')}catch{setError(true);setMessage('No se pudo borrar el gasto.')}finally{setBusy(false)}};
  const visible=expenses.filter(x=>x.date.startsWith(month)).slice().reverse();
- return <><Message text={message} error={error}/><div className="panel editForm" ref={editor}><h2>{editing?'Editar gasto':'Registro de gastos'}</h2><form onSubmit={save}><fieldset disabled={busy} className="form grid"><Field label="Fecha"><input required type="date" value={f.date} onChange={e=>setF({...f,date:e.target.value})}/></Field><Field label="Categoría"><select value={f.category} onChange={e=>setF({...f,category:e.target.value})}>{Array.from(new Set(['Materiales','Operativo','Servicios','Transporte','Nómina','Publicidad','Equipos','Otro',f.category])).map(x=><option key={x}>{x}</option>)}</select></Field><Field label="Descripción"><input required value={f.description} onChange={e=>setF({...f,description:e.target.value})}/></Field><Field label="Monto"><input required type="number" min="0.01" step="0.01" value={f.amount} onChange={e=>setF({...f,amount:e.target.value})}/></Field><CurrencyField value={f.currency} onChange={currency=>setF({...f,currency})}/><div className="actions"><button type="submit" className="btn primary">{busy?'Guardando…':editing?'Guardar cambios':'Guardar gasto'}</button>{editing&&<button type="button" className="btn" onClick={reset}>Cancelar edición</button>}</div></fieldset></form></div><div className="panel"><h2>Gastos · {month}</h2><GridTable heads={['Fecha','Categoría','Descripción','Importe','Acciones']}>{visible.map(x=><tr key={x.id}><td>{x.date}</td><td>{x.category}</td><td>{x.description}</td><td>{dual(x.amount,rate)}</td><td><div className="actions"><button className="small" disabled={busy} onClick={()=>edit(x)}>Editar</button><button className="dangerSmall" disabled={busy} onClick={()=>remove(x.id)}>Borrar</button></div></td></tr>)}</GridTable>{!visible.length&&<p className="empty">No hay gastos en este mes.</p>}</div></>;
+ return <><Message text={message} error={error}/><div className="panel editForm" ref={editor}><h2>{editing?'Editar gasto':'Registro de gastos'}</h2><form onSubmit={save}><fieldset disabled={busy} className="form grid"><Field label="Fecha"><input required type="date" value={f.date} onChange={e=>setF({...f,date:e.target.value})}/></Field><label><span>Categoría <button type="button" className="addChip" onClick={handleAddCategory} title="Agregar categoría">+</button></span><ManagedSelect value={f.category} onChange={v=>setF({...f,category:v})} options={categories} onRemove={handleRemoveCategoryItem} confirmMessage={(c:string)=>`¿Borrar la categoría "${c}" de tu lista? Los gastos que ya la tienen la conservan igual — solo deja de aparecer para gastos nuevos.`}/></label><Field label="Descripción"><input required value={f.description} onChange={e=>setF({...f,description:e.target.value})}/></Field><Field label="Monto"><input required type="number" min="0.01" step="0.01" value={f.amount} onChange={e=>setF({...f,amount:e.target.value})}/></Field><CurrencyField value={f.currency} onChange={currency=>setF({...f,currency})}/><div className="actions"><button type="submit" className="btn primary">{busy?'Guardando…':editing?'Guardar cambios':'Guardar gasto'}</button>{editing&&<button type="button" className="btn" onClick={reset}>Cancelar edición</button>}</div></fieldset></form></div><div className="panel"><h2>Gastos · {month}</h2><GridTable heads={['Fecha','Categoría','Descripción','Importe','Acciones']}>{visible.map(x=><tr key={x.id}><td>{x.date}</td><td>{x.category}</td><td>{x.description}</td><td>{dual(x.amount,rate)}</td><td><div className="actions"><button className="small" disabled={busy} onClick={()=>edit(x)}>Editar</button><button className="dangerSmall" disabled={busy} onClick={()=>remove(x.id)}>Borrar</button></div></td></tr>)}</GridTable>{!visible.length&&<p className="empty">No hay gastos en este mes.</p>}</div></>;
 }
 
 export function SalesMethods({sales,month,rate,paymentMethods}:SalesProps){

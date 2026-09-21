@@ -14,3 +14,19 @@ export function saleSaveError(error: {code?:string;message?:string}) {
  }
  return error;
 }
+// Cuando falta una columna en Supabase (porque todavía no se corrió una
+// migración), Postgres/PostgREST avisan con el código 42703 (columna no
+// existe) o PGRST204 (no está en la caché del esquema). En vez de un error
+// genérico, esto arma un mensaje que dice exactamente qué migración correr.
+export function businessColumnSaveError(error: {code?:string;message?:string}, column: string, migrationFile: string) {
+ if (['PGRST204','42703'].includes(error.code||'') && new RegExp(column, 'i').test(error.message||'')) {
+  return new Error(`Falta correr una migración en Supabase para esta función. Ejecuta el SQL de migration/${migrationFile} en el SQL Editor de Supabase y vuelve a intentarlo. No se perdió nada — el guardado solo no se pudo completar.`);
+ }
+ return error;
+}
+export function inventoryItemSaveError(error: {code?:string;message?:string}) {
+ if (!['PGRST204','42703'].includes(error.code||'')) return error;
+ if (/\bnote\b/i.test(error.message||'')) return new Error('Falta correr migration/011_inventory_note.sql en Supabase. Ejecútalo en el SQL Editor de Supabase y vuelve a guardar.');
+ if (/\btalla\b/i.test(error.message||'') || /\bcolor\b/i.test(error.message||'')) return new Error('Falta correr migration/010_inventory_talla_color.sql en Supabase. Ejecútalo en el SQL Editor de Supabase y vuelve a guardar.');
+ return error;
+}

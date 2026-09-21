@@ -209,3 +209,36 @@ No requiere ninguna migración nueva.
 - El botón **+** para agregar uno nuevo se queda igual que antes, al lado de la etiqueta del campo.
 
 No se perdió ningún dato existente.
+
+
+## v3.32.1 — Diagnóstico: "No se pudieron guardar todas las tallas nuevas"
+No requiere ninguna migración nueva (esta versión es un diagnóstico + mensaje más claro, no una función nueva).
+
+**Sobre el error que te salió al importar tu Excel de septiembre**: al presionar "Agregar estas tallas a mi lista" salía "No se pudieron guardar todas las tallas nuevas. Inténtalo de nuevo." Revisé el código y la causa casi segura es que en tu proyecto de Supabase todavía no se ha corrido `migration/012_inventory_sizes.sql` — esa es la migración que agrega la columna donde se guarda tu lista de tallas, de la actualización v3.29.0. Sin esa columna, elegir tallas funciona (usa una lista temporal), pero guardar una talla nueva en la nube falla, que es exactamente lo que viste.
+
+Con esta versión, si te vuelve a faltar una migración, la app ahora te dice **cuál archivo correr** en vez de un error genérico (por ejemplo: "Falta correr una migración en Supabase para esta función. Ejecuta el SQL de migration/012_inventory_sizes.sql..."). Esto aplica a las listas de Categoría/Talla/Método de pago, al Inventario Inicial, y a guardar Talla/Color/Nota en un producto.
+
+**Lo que necesitas hacer**: entra al SQL Editor de tu proyecto en Supabase y corre, en este orden (si no lo has hecho ya), todos los archivos de la carpeta `migration/` que todavía no hayas corrido: 009, 010, 011, 012 y 013. Puedes correr cada uno aunque no estés seguro si ya lo corriste antes — están escritos para no dar error si ya existe lo que agregan (verás un aviso tipo "already exists, skipping", que es normal).
+
+
+## v3.33.0 — Gastos, Categoría: ahora se puede agregar y borrar (igual que en Ventas y en Inventario)
+Requiere correr `migration/014_expense_categories.sql` (además de las anteriores, si todavía no las has corrido).
+
+- **Gastos, Categoría**: hasta ahora era una lista fija que no se podía tocar. Ahora funciona exactamente igual que Método de pago en Ventas y Categoría/Talla en Inventario: junto a "Categoría" hay un botón **+** para agregar categorías nuevas, y al darle clic a la flechita de abajo se abre la lista completa con una **×** roja en cada categoría para borrarla (con confirmación antes de borrar). Los gastos que ya tenías registrados con una categoría conservan su dato igual, aunque la borres de la lista.
+- **Revisión de toda la página**: como pediste, revisé cada lugar de la app donde hay una lista con flechita para elegir un valor. Categoría de Gastos era el único que le faltaba este botón de agregar/borrar. El resto de los selectores (Moneda C$/US$, el mes y el año en Detalle de Inventario, el período del historial en "Ventas Transferencia Efectivo", y el Rol en Usuarios) son opciones fijas del sistema, no listas que tú administras, así que se quedan como están — no aplica agregar/borrar ahí.
+
+**Lo que necesitas hacer**: entra al SQL Editor de tu proyecto en Supabase y corre `migration/014_expense_categories.sql`. Es seguro correrlo aunque ya hayas corrido las anteriores — si algo ya existe, solo avisa "already exists, skipping", que es normal.
+
+No se perdió ningún dato existente.
+
+
+## v3.33.1 — Corrección: los productos con 0 en existencia se ignoraban al importar
+No requiere ninguna migración nueva.
+
+**El problema que reportaste**: al importar tu Excel de inventario, los productos que ya no tienen existencia (cantidad 0) no se estaban guardando — la app los descartaba en silencio durante la importación, como si esa fila no existiera. Por eso no aparecían después en "Detalle de Inventario" ni se detectaban como faltantes: para el sistema, ese producto simplemente nunca se contó ese mes.
+
+**La corrección**: ahora una fila con cantidad **0** en el Excel sí se importa (se guarda con 0 en existencia). Solo se sigue ignorando una fila si le falta el nombre del producto o si la celda de cantidad viene vacía/no es un número — eso no cambió. Lo mismo se corrigió al agregar un producto a mano en Inventario: ahora puedes guardar un producto con cantidad 0.
+
+Con este cambio, un producto que baja a 0 sí queda registrado ese mes, y "Detalle de Inventario" lo va a marcar correctamente en rojo como faltante si antes tenía existencia.
+
+No se perdió ningún dato existente.

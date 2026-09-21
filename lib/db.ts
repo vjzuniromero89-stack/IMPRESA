@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from './supabaseClient';
-import {changedSaleFields, saleSaveError} from './salePersistence';
+import {changedSaleFields, saleSaveError, businessColumnSaveError, inventoryItemSaveError} from './salePersistence';
 
 // ---------- Tipos (iguales a los que usaba la app con localStorage) ----------
 export type Currency = 'C$' | 'US$';
@@ -151,8 +151,9 @@ export async function listActivity(businessId: string): Promise<ActivityEntry[]>
 const DEFAULT_INVENTORY_CATEGORIES = ['Camisas', 'Hilos', 'Tintas', 'Vinil', 'Sublimación', 'Empaque', 'Otros'];
 const DEFAULT_PAYMENT_METHODS = ['Transferencia', 'Efectivo'];
 const DEFAULT_INVENTORY_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '2', '4', '6', '8', '10', '12', '14', '16'];
+const DEFAULT_EXPENSE_CATEGORIES = ['Materiales', 'Operativo', 'Servicios', 'Transporte', 'Nómina', 'Publicidad', 'Equipos', 'Otro'];
 
-export async function fetchBusinessSettings(businessId: string): Promise<{ rate: number; initialBase: InitialBase; inventoryCategories: string[]; paymentMethods: string[]; inventorySizes: string[]; inventoryBaselineMonth: string | null }> {
+export async function fetchBusinessSettings(businessId: string): Promise<{ rate: number; initialBase: InitialBase; inventoryCategories: string[]; paymentMethods: string[]; inventorySizes: string[]; expenseCategories: string[]; inventoryBaselineMonth: string | null }> {
   const { data, error } = await supabase.from('businesses').select('*').eq('id', businessId).single();
   if (error) throw error;
   return {
@@ -166,12 +167,13 @@ export async function fetchBusinessSettings(businessId: string): Promise<{ rate:
     inventoryCategories: (Array.isArray(data.inventory_categories) && data.inventory_categories.length) ? data.inventory_categories : DEFAULT_INVENTORY_CATEGORIES,
     paymentMethods: (Array.isArray(data.payment_methods) && data.payment_methods.length) ? data.payment_methods : DEFAULT_PAYMENT_METHODS,
     inventorySizes: (Array.isArray(data.inventory_sizes) && data.inventory_sizes.length) ? data.inventory_sizes : DEFAULT_INVENTORY_SIZES,
+    expenseCategories: (Array.isArray(data.expense_categories) && data.expense_categories.length) ? data.expense_categories : DEFAULT_EXPENSE_CATEGORIES,
     inventoryBaselineMonth: data.inventory_baseline_month || null
   };
 }
 export async function setInventoryBaselineMonthRemote(businessId: string, month: string | null) {
   const { error } = await supabase.from('businesses').update({ inventory_baseline_month: month }).eq('id', businessId);
-  if (error) throw error;
+  if (error) throw businessColumnSaveError(error, 'inventory_baseline_month', '013_inventory_baseline.sql');
 }
 export async function updateRateRemote(businessId: string, rate: number) {
   const { error } = await supabase.from('businesses').update({ exchange_rate: rate }).eq('id', businessId);
@@ -188,16 +190,22 @@ export async function confirmInitialBaseRemote(businessId: string, baseC: number
 // dispositivo. Si alguien más agregó una entre que tú cargabas la página,
 // se vuelve a leer la lista actual antes de agregar la tuya, para no perder
 // la del otro.
-async function appendBusinessListRemote(businessId: string, column: 'inventory_categories' | 'payment_methods' | 'inventory_sizes', fallback: string[], value: string): Promise<string[]> {
+const BUSINESS_LIST_MIGRATIONS: Record<string, string> = {
+  inventory_categories: '009_custom_categories_and_payment_methods.sql',
+  payment_methods: '009_custom_categories_and_payment_methods.sql',
+  inventory_sizes: '012_inventory_sizes.sql',
+  expense_categories: '014_expense_categories.sql'
+};
+async function appendBusinessListRemote(businessId: string, column: 'inventory_categories' | 'payment_methods' | 'inventory_sizes' | 'expense_categories', fallback: string[], value: string): Promise<string[]> {
   const name = (value || '').trim();
   if (!name) throw new Error('Escribe un nombre antes de guardar.');
   const { data, error } = await supabase.from('businesses').select(column).eq('id', businessId).single();
-  if (error) throw error;
+  if (error) throw businessColumnSaveError(error, column, BUSINESS_LIST_MIGRATIONS[column]);
   const current: string[] = (Array.isArray((data as any)?.[column]) && (data as any)[column].length) ? (data as any)[column] : fallback;
   if (current.some(c => c.toLowerCase() === name.toLowerCase())) return current;
   const next = [...current, name];
   const { error: e2 } = await supabase.from('businesses').update({ [column]: next }).eq('id', businessId);
-  if (e2) throw e2;
+  if (e2) throw businessColumnSaveError(e2, column, BUSINESS_LIST_MIGRATIONS[column]);
   return next;
 }
 export async function addInventoryCategoryRemote(businessId: string, category: string): Promise<string[]> {
@@ -209,16 +217,19 @@ export async function addPaymentMethodRemote(businessId: string, method: string)
 export async function addInventorySizeRemote(businessId: string, size: string): Promise<string[]> {
   return appendBusinessListRemote(businessId, 'inventory_sizes', DEFAULT_INVENTORY_SIZES, size);
 }
+export async function addExpenseCategoryRemote(businessId: string, category: string): Promise<string[]> {
+  return appendBusinessListRemote(businessId, 'expense_categories', DEFAULT_EXPENSE_CATEGORIES, category);
+}
 // Quitar un valor de una de estas listas guardadas. Lo que ya está usado en
 // productos/ventas anteriores conserva su dato tal cual — esto solo lo quita
 // de la lista para que no se vuelva a elegir en registros nuevos.
-async function removeBusinessListItemRemote(businessId: string, column: 'inventory_categories' | 'payment_methods' | 'inventory_sizes', fallback: string[], value: string): Promise<string[]> {
+async function removeBusinessListItemRemote(businessId: string, column: 'inventory_categories' | 'payment_methods' | 'inventory_sizes' | 'expense_categories', fallback: string[], value: string): Promise<string[]> {
   const { data, error } = await supabase.from('businesses').select(column).eq('id', businessId).single();
-  if (error) throw error;
+  if (error) throw businessColumnSaveError(error, column, BUSINESS_LIST_MIGRATIONS[column]);
   const current: string[] = (Array.isArray((data as any)?.[column]) && (data as any)[column].length) ? (data as any)[column] : fallback;
   const next = current.filter(c => c.toLowerCase() !== value.trim().toLowerCase());
   const { error: e2 } = await supabase.from('businesses').update({ [column]: next }).eq('id', businessId);
-  if (e2) throw e2;
+  if (e2) throw businessColumnSaveError(e2, column, BUSINESS_LIST_MIGRATIONS[column]);
   return next;
 }
 export async function removeInventoryCategoryRemote(businessId: string, category: string): Promise<string[]> {
@@ -229,6 +240,9 @@ export async function removePaymentMethodRemote(businessId: string, method: stri
 }
 export async function removeInventorySizeRemote(businessId: string, size: string): Promise<string[]> {
   return removeBusinessListItemRemote(businessId, 'inventory_sizes', DEFAULT_INVENTORY_SIZES, size);
+}
+export async function removeExpenseCategoryRemote(businessId: string, category: string): Promise<string[]> {
+  return removeBusinessListItemRemote(businessId, 'expense_categories', DEFAULT_EXPENSE_CATEGORIES, category);
 }
 
 // ---------- Mapeos por entidad (fila de Supabase <-> objeto de la app) ----------
@@ -376,11 +390,11 @@ function inventoryItemToRow(businessId: string, month: string, item: InventoryIt
 }
 export async function addInventoryItemRemote(businessId: string, month: string, item: InventoryItem) {
   const { error } = await supabase.from('monthly_inventory').insert(inventoryItemToRow(businessId, month, item));
-  if (error) throw error;
+  if (error) throw inventoryItemSaveError(error);
 }
 export async function updateInventoryItemRemote(itemId: string, item: InventoryItem) {
   const { error } = await supabase.from('monthly_inventory').update(inventoryItemFields(item)).eq('id', itemId);
-  if (error) throw error;
+  if (error) throw inventoryItemSaveError(error);
 }
 // Importación desde Excel: inserta muchos productos de una sola vez (en
 // bloques, para no mandar una sola petición gigante si el archivo es muy
@@ -390,7 +404,7 @@ export async function addInventoryItemsBulkRemote(businessId: string, month: str
   const chunkSize = 300;
   for (let i = 0; i < rows.length; i += chunkSize) {
     const { error } = await supabase.from('monthly_inventory').insert(rows.slice(i, i + chunkSize));
-    if (error) throw error;
+    if (error) throw inventoryItemSaveError(error);
   }
 }
 export async function deleteInventoryItemRemote(itemId: string) {

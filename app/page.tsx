@@ -7,13 +7,15 @@ import Users from '../components/Users';
 import ManagedSelect from '../components/ManagedSelect';
 import {Sales,Expenses,SalesMethods} from '../components/SalesWorkspace';
 import type {Payment,Sale,Expense,Account,InventoryItem,InventoryClose,DebtPayment,MonthClose,Quote,InitialBase,AppUser,Debt,DebtPaymentRecord,AccountBalanceEntry} from '../lib/db';
-import {uid,ensureBusiness,fetchBusinessSettings,updateRateRemote,confirmInitialBaseRemote,useSalesCloud,useExpensesCloud,useAccountsCloud,useQuotesCloud,useMonthClosesCloud,useDebtsCloud,loadInventory,addInventoryItemRemote,addInventoryItemsBulkRemote,updateInventoryItemRemote,deleteInventoryItemRemote,deleteInventoryMonthRemote,logActivity,loadDebtPayments,addDebtPaymentRemote,removeDebtPaymentRemote,loadAccountBalanceHistory,addAccountBalanceHistoryRemote,removeAccountBalanceHistoryRemote,addInventoryCategoryRemote,addPaymentMethodRemote,addInventorySizeRemote,setInventoryBaselineMonthRemote,removeInventoryCategoryRemote,removePaymentMethodRemote,removeInventorySizeRemote} from '../lib/db';
+import {uid,ensureBusiness,fetchBusinessSettings,updateRateRemote,confirmInitialBaseRemote,useSalesCloud,useExpensesCloud,useAccountsCloud,useQuotesCloud,useMonthClosesCloud,useDebtsCloud,loadInventory,addInventoryItemRemote,addInventoryItemsBulkRemote,updateInventoryItemRemote,deleteInventoryItemRemote,deleteInventoryMonthRemote,logActivity,loadDebtPayments,addDebtPaymentRemote,removeDebtPaymentRemote,loadAccountBalanceHistory,addAccountBalanceHistoryRemote,removeAccountBalanceHistoryRemote,addInventoryCategoryRemote,addPaymentMethodRemote,addInventorySizeRemote,setInventoryBaselineMonthRemote,removeInventoryCategoryRemote,removePaymentMethodRemote,removeInventorySizeRemote,addExpenseCategoryRemote,removeExpenseCategoryRemote} from '../lib/db';
 
 const CURRENT_USER_KEY='impresa_current_user';
 
 const tabs=['Dashboard','Ventas','Gastos','Inventario','Banco y Efectivo','Contabilidad','Deudas','Cierre de mes','Cotizaciones','Usuarios','Reportes','Configuración'];
 const today=()=>new Date().toISOString().slice(0,10);
 const monthNow=()=>new Date().toISOString().slice(0,7);
+// Muestra el mensaje del error si trae uno útil (por ejemplo, avisando qué migración de Supabase falta correr); si no, el mensaje genérico.
+const errMsg=(err:unknown,fallback:string)=>(err instanceof Error&&err.message)?err.message:fallback;
 const money=(n:number,c:'C$'|'US$'='C$')=>`${c}${new Intl.NumberFormat('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(n)||0)}`;
 const dual=(nio:number,rate:number)=>`${money(nio,'C$')} · ${money(rate>0?nio/rate:0,'US$')}`;
 const toNio=(amount:number,currency:'C$'|'US$',rate:number)=>currency==='US$'?amount*rate:amount;
@@ -33,6 +35,7 @@ export default function Home(){
  const [inventoryCategories,setInventoryCategories]=useState<string[]>(['Camisas','Hilos','Tintas','Vinil','Sublimación','Empaque','Otros']);
  const [paymentMethods,setPaymentMethods]=useState<string[]>(['Transferencia','Efectivo']);
  const [inventorySizes,setInventorySizes]=useState<string[]>(['XS','S','M','L','XL','XXL','2','4','6','8','10','12','14','16']);
+ const [expenseCategories,setExpenseCategories]=useState<string[]>(['Materiales','Operativo','Servicios','Transporte','Nómina','Publicidad','Equipos','Otro']);
  const [inventoryBaselineMonth,setInventoryBaselineMonthLocal]=useState<string|null>(null);
 
  // Inicio de sesión con usuario y contraseña (pestaña Usuarios). Una vez
@@ -55,7 +58,7 @@ export default function Home(){
  useEffect(()=>{
   if(!businessId)return;
   let cancelled=false;
-  fetchBusinessSettings(businessId).then(s=>{if(!cancelled){setRateLocal(s.rate);setInitialBaseLocal(s.initialBase);setInventoryCategories(s.inventoryCategories);setPaymentMethods(s.paymentMethods);setInventorySizes(s.inventorySizes);setInventoryBaselineMonthLocal(s.inventoryBaselineMonth);setSettingsReady(true)}}).catch(err=>{console.error('IMPRESA: no se pudo cargar la configuración',err);if(!cancelled)setSettingsReady(true)});
+  fetchBusinessSettings(businessId).then(s=>{if(!cancelled){setRateLocal(s.rate);setInitialBaseLocal(s.initialBase);setInventoryCategories(s.inventoryCategories);setPaymentMethods(s.paymentMethods);setInventorySizes(s.inventorySizes);setExpenseCategories(s.expenseCategories);setInventoryBaselineMonthLocal(s.inventoryBaselineMonth);setSettingsReady(true)}}).catch(err=>{console.error('IMPRESA: no se pudo cargar la configuración',err);if(!cancelled)setSettingsReady(true)});
   return ()=>{cancelled=true}
  },[businessId]);
 
@@ -77,6 +80,11 @@ export default function Home(){
   setInventorySizes(next);
   return next;
  };
+ const addExpenseCategory=async(name:string)=>{
+  if(!businessId)throw new Error('Todavía se está preparando tu negocio, intenta de nuevo en un momento.');
+  const next=await addExpenseCategoryRemote(businessId,name);
+  setExpenseCategories(next);
+ };
  const setInventoryBaselineMonth=async(m:string|null)=>{
   if(!businessId)throw new Error('Todavía se está preparando tu negocio, intenta de nuevo en un momento.');
   await setInventoryBaselineMonthRemote(businessId,m);
@@ -96,6 +104,11 @@ export default function Home(){
   if(!businessId)throw new Error('Todavía se está preparando tu negocio, intenta de nuevo en un momento.');
   const next=await removeInventorySizeRemote(businessId,name);
   setInventorySizes(next);
+ };
+ const removeExpenseCategory=async(name:string)=>{
+  if(!businessId)throw new Error('Todavía se está preparando tu negocio, intenta de nuevo en un momento.');
+  const next=await removeExpenseCategoryRemote(businessId,name);
+  setExpenseCategories(next);
  };
 
  const logCtx={userId:currentUser?.id,username:currentUser?.username||''};
@@ -132,7 +145,7 @@ export default function Home(){
  },[businessId]);
  const reloadAccountHistory=()=>{if(businessId)loadAccountBalanceHistory(businessId).then(setAccountHistoryLocal).catch(err=>console.error(err))};
 
- const props={sales,setSales,expenses,setExpenses,accounts,setAccounts,closes,businessId,reloadInventory,monthCloses,addMonthClose,initialBase,setInitialBase,quotes,setQuotes,debts,setDebts,debtPayments,reloadDebtPayments,accountHistory,reloadAccountHistory,month,rate,setRate,logCtx,inventoryCategories,addInventoryCategory,removeInventoryCategory,paymentMethods,addPaymentMethod,removePaymentMethod,inventorySizes,addInventorySize,removeInventorySize,inventoryBaselineMonth,setInventoryBaselineMonth};
+ const props={sales,setSales,expenses,setExpenses,accounts,setAccounts,closes,businessId,reloadInventory,monthCloses,addMonthClose,initialBase,setInitialBase,quotes,setQuotes,debts,setDebts,debtPayments,reloadDebtPayments,accountHistory,reloadAccountHistory,month,rate,setRate,logCtx,inventoryCategories,addInventoryCategory,removeInventoryCategory,paymentMethods,addPaymentMethod,removePaymentMethod,inventorySizes,addInventorySize,removeInventorySize,expenseCategories,addExpenseCategory,removeExpenseCategory,inventoryBaselineMonth,setInventoryBaselineMonth};
 
  if(!supabaseConfigured)return <Auth businessId={null} onLogin={()=>{}}/>;
  if(bootError)return <div className="loadingScreen">{bootError}</div>;
@@ -209,21 +222,21 @@ function Inventory({closes,businessId,reloadInventory,monthCloses,month,rate,log
   const name=prompt('Nombre de la nueva categoría de inventario:');
   if(!name||!name.trim())return;
   try{await addInventoryCategory(name.trim());setF(prev=>({...prev,category:name.trim()}))}
-  catch(err){console.error(err);alert('No se pudo guardar la nueva categoría en la nube. Inténtalo de nuevo.')}
+  catch(err){console.error(err);alert(errMsg(err,'No se pudo guardar la nueva categoría en la nube. Inténtalo de nuevo.'))}
  };
  const handleAddSize=async()=>{
   const name=prompt('Nueva talla (por ejemplo S, M, L, 8, 10…):');
   if(!name||!name.trim())return;
   try{await addInventorySize(name.trim());setF(prev=>({...prev,talla:name.trim()}))}
-  catch(err){console.error(err);alert('No se pudo guardar la nueva talla en la nube. Inténtalo de nuevo.')}
+  catch(err){console.error(err);alert(errMsg(err,'No se pudo guardar la nueva talla en la nube. Inténtalo de nuevo.'))}
  };
  const handleRemoveCategoryItem=async(name:string)=>{
   try{await removeInventoryCategory(name);setF(prev=>prev.category===name?{...prev,category:categories.filter((c:string)=>c!==name)[0]||''}:prev)}
-  catch(err){console.error(err);alert('No se pudo borrar la categoría en la nube. Inténtalo de nuevo.')}
+  catch(err){console.error(err);alert(errMsg(err,'No se pudo borrar la categoría en la nube. Inténtalo de nuevo.'))}
  };
  const handleRemoveSizeItem=async(name:string)=>{
   try{await removeInventorySize(name);setF(prev=>prev.talla===name?{...prev,talla:''}:prev)}
-  catch(err){console.error(err);alert('No se pudo borrar la talla en la nube. Inténtalo de nuevo.')}
+  catch(err){console.error(err);alert(errMsg(err,'No se pudo borrar la talla en la nube. Inténtalo de nuevo.'))}
  };
  const cancelEdit=()=>{setEditingId(null);setF(prev=>({...prev,name:'',talla:'',color:'',qty:'',unitValue:''}))};
  const editItem=(item:InventoryItem)=>{
@@ -232,8 +245,9 @@ function Inventory({closes,businessId,reloadInventory,monthCloses,month,rate,log
  };
  const save=async()=>{
   if(closed)return alert('Este mes ya está cerrado.');
-  if(!f.name||!+f.qty)return alert('Completa detalle y cantidad.');
-  const item:InventoryItem={id:editingId||uid(),name:f.name,category:f.category,talla:f.talla.trim(),color:f.color.trim(),qty:+f.qty,unitValue:unitNio,currency:f.currency as 'C$'|'US$',enteredUnitValue:entered};
+  const qtyNum=f.qty===''?NaN:+f.qty;
+  if(!f.name||!Number.isFinite(qtyNum)||qtyNum<0)return alert('Completa detalle y cantidad (puede ser 0 si no tienes existencias).');
+  const item:InventoryItem={id:editingId||uid(),name:f.name,category:f.category,talla:f.talla.trim(),color:f.color.trim(),qty:qtyNum,unitValue:unitNio,currency:f.currency as 'C$'|'US$',enteredUnitValue:entered};
   try{
    if(editingId){
     await updateInventoryItemRemote(editingId,item);
@@ -245,7 +259,7 @@ function Inventory({closes,businessId,reloadInventory,monthCloses,month,rate,log
     if(logCtx)logActivity(businessId,logCtx.userId,logCtx.username,'created','monthly_inventory',`Agregó "${item.name}" al inventario de ${month}`);
    }
    cancelEdit();
-  }catch(err){console.error(err);alert(editingId?'No se pudo guardar los cambios en la nube. Inténtalo de nuevo.':'No se pudo guardar el producto en la nube.')}
+  }catch(err){console.error(err);alert(errMsg(err,editingId?'No se pudo guardar los cambios en la nube. Inténtalo de nuevo.':'No se pudo guardar el producto en la nube.'))}
  };
  const removeItem=async(id:string,name?:string)=>{try{await deleteInventoryItemRemote(id);reloadInventory();if(editingId===id)cancelEdit();if(logCtx)logActivity(businessId,logCtx.userId,logCtx.username,'deleted','monthly_inventory',`Eliminó "${name||'un producto'}" del inventario de ${month}`)}catch(err){console.error(err);alert('No se pudo borrar el producto.')}};
  const removeMonth=async(m:string)=>{try{await deleteInventoryMonthRemote(businessId,m);reloadInventory();if(logCtx)logActivity(businessId,logCtx.userId,logCtx.username,'deleted','monthly_inventory',`Eliminó el inventario del mes ${m}`)}catch(err){console.error(err);alert('No se pudo borrar el inventario de ese mes.')}};
@@ -286,7 +300,7 @@ function Inventory({closes,businessId,reloadInventory,monthCloses,month,rate,log
    const name=iName>=0?String(arr[iName]??'').trim():'';
    const qty=iQty>=0?toNum(arr[iQty]):NaN;
    const price=iPrice>=0?toNum(arr[iPrice]):NaN;
-   if(!name||!Number.isFinite(qty)||qty<=0)continue;
+   if(!name||!Number.isFinite(qty)||qty<0)continue;
    // Columnas extra del Excel que la tabla de la app no muestra (Fecha,
    // Faltante) se guardan en una nota, para no perder esa información.
    const noteParts:string[]=[];
@@ -322,7 +336,7 @@ function Inventory({closes,businessId,reloadInventory,monthCloses,month,rate,log
  const unknownImportSizes=importPreview?Array.from(new Set(importPreview.map(p=>(p.talla||'').trim()).filter(t=>t&&!sizes.some(s=>normSize(s)===normSize(t))))):[];
  const addUnknownSizes=async()=>{
   try{for(const s of unknownImportSizes)await addInventorySize(s)}
-  catch(err){console.error(err);alert('No se pudieron guardar todas las tallas nuevas. Inténtalo de nuevo.')}
+  catch(err){console.error(err);alert(errMsg(err,'No se pudieron guardar todas las tallas nuevas. Inténtalo de nuevo.'))}
  };
  const confirmImport=async()=>{
   if(!importPreview||!importPreview.length||!businessId)return;
@@ -371,8 +385,8 @@ function Inventory({closes,businessId,reloadInventory,monthCloses,month,rate,log
  <Panel title="Historial de inventarios">
   <p className="muted">El <b>Inventario Inicial</b> es tu punto de partida (el mes desde el cual quieres empezar a comparar). Marca un mes como inicial una sola vez — desde ahí, "Detalle de Inventario" te muestra cuánto ha bajado cada producto entre ese inventario inicial y tu conteo más reciente.</p>
   <Table heads={['Mes','Fecha','Productos/materiales','Total C$','Total US$','Notas','Inventario Inicial','Acción']} rows={[...closes].sort((a:InventoryClose,b:InventoryClose)=>b.month.localeCompare(a.month)).map((x:InventoryClose)=>[x.month,x.date,x.items.length,money(x.total,'C$'),money(rate>0?x.total/rate:0,'US$'),x.notes,
-   x.month===inventoryBaselineMonth?<span className="baselineBadge">★ Inicial</span>:<button className="small" onClick={async()=>{try{await setInventoryBaselineMonth(x.month)}catch(err){console.error(err);alert('No se pudo guardar el inventario inicial en la nube.')}}}>Marcar como inicial</button>,
-   <div className="actions">{x.month===inventoryBaselineMonth&&<button className="small" onClick={async()=>{try{await setInventoryBaselineMonth(null)}catch(err){console.error(err);alert('No se pudo quitar el inventario inicial en la nube.')}}}>Quitar inicial</button>}<button className="dangerSmall" onClick={()=>{if(confirm(`¿Borrar el inventario de ${x.month}?`))removeMonth(x.month)}}>Borrar</button></div>])}/>
+   x.month===inventoryBaselineMonth?<span className="baselineBadge">★ Inicial</span>:<button className="small" onClick={async()=>{try{await setInventoryBaselineMonth(x.month)}catch(err){console.error(err);alert(errMsg(err,'No se pudo guardar el inventario inicial en la nube.'))}}}>Marcar como inicial</button>,
+   <div className="actions">{x.month===inventoryBaselineMonth&&<button className="small" onClick={async()=>{try{await setInventoryBaselineMonth(null)}catch(err){console.error(err);alert(errMsg(err,'No se pudo quitar el inventario inicial en la nube.'))}}}>Quitar inicial</button>}<button className="dangerSmall" onClick={()=>{if(confirm(`¿Borrar el inventario de ${x.month}?`))removeMonth(x.month)}}>Borrar</button></div>])}/>
  </Panel></>
 }
 const MONTH_LABELS=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
