@@ -168,7 +168,7 @@ function Dashboard({sales,expenses,accounts,closes,monthCloses,month,rate}:any){
  const expenseCats=Object.entries(em.reduce((o:any,x:Expense)=>(o[x.category]=(o[x.category]||0)+x.amount,o),{})).map(([label,value])=>({label,value:Number(value)}));
  const trend=[...monthCloses].sort((a:MonthClose,b:MonthClose)=>a.month.localeCompare(b.month)).slice(-6).map((x:MonthClose)=>({label:x.month.slice(5),value:x.currentValueC}));
  return <><section className="hero"><div><div className="eyebrow light">RESUMEN EJECUTIVO · {month}</div><h2>Estado general del negocio</h2><p>Vista consolidada de liquidez, inventario y actividad operativa.</p></div><div className="heroValue"><span>Patrimonio operativo</span><strong>{dual(patrimony,rate)}</strong></div></section>
- <div className="kpis"><Kpi icon="🏦" t="Bancos y efectivo" v={dual(bankCash,rate)} sub="Saldo consolidado"/><Kpi icon="📦" t="Inventario" v={dual(inventory,rate)} sub={last?`Cierre ${last.month}`:'Sin cierre'}/><Kpi icon="📈" t="Ventas registradas" v={dual(salesM,rate)} sub={`${sm.length} movimientos · informativo`}/><Kpi icon="🧾" t="Gastos del mes" v={dual(expM,rate)} sub={`${em.length} movimientos`}/></div>
+ <div className="kpis"><Kpi icon="🏦" t="Bancos y caja" v={dual(bankCash,rate)} sub="Saldo consolidado"/><Kpi icon="📦" t="Inventario" v={dual(inventory,rate)} sub={last?`Cierre ${last.month}`:'Sin cierre'}/><Kpi icon="📈" t="Ventas registradas" v={dual(salesM,rate)} sub={`${sm.length} movimientos · informativo`}/><Kpi icon="🧾" t="Gastos del mes" v={dual(expM,rate)} sub={`${em.length} movimientos`}/></div>
  <Panel title="Valor del Negocio Actual"><BusinessProgress currentC={patrimony} rate={rate} large/></Panel>
  <div className="dashboardGrid"><Panel title="Evolución del valor del negocio"><MiniLine data={trend} moneyMode/><div className="chartLegend"><span>Últimos cierres mensuales</span><b>{trend.length?dual(trend[trend.length-1].value,rate):'Sin cierres'}</b></div></Panel><Panel title="Distribución de gastos"><MiniBars data={expenseCats} rate={rate}/>{!expenseCats.length&&<Empty text="No hay gastos registrados este mes."/>}</Panel></div>
  <div className="dashboardGrid"><Panel title="Liquidez por cuenta">{accounts.map((x:Account)=>{const c=x.currency==='US$'?x.balance*rate:x.balance;return <div className="accountRow" key={x.id}><div><b>{x.name}</b><small>{x.currency} · actualizado {x.updated}</small></div><strong>{dual(c,rate)}</strong></div>})}</Panel><Panel title="Control del período"><div className="healthList"><Health label="Inventario mensual" ok={!!last} text={last?`Último cierre: ${last.month}`:'Pendiente de registrar'}/><Health label="Cierre contable" ok={monthCloses.some((x:MonthClose)=>x.month===month)} text={monthCloses.some((x:MonthClose)=>x.month===month)?'Mes cerrado':'Mes abierto'}/><Health label="Tipo de cambio" ok={rate>0} text={`C$${rate.toFixed(2)} = US$1`}/></div></Panel></div></>
@@ -297,15 +297,7 @@ function Inventory({closes,businessId,reloadInventory,monthCloses,month,rate,log
   const iDate=findFirstMatch(DATE_HEADERS),iMissing=findFirstMatch(MISSING_HEADERS);
   const parsed:InventoryItem[]=[];
   for(const arr of raw.slice(headerRowIdx+1)){
-   let name=iName>=0?String(arr[iName]??'').trim():'';
-   let color=iColor>=0?String(arr[iColor]??'').trim():'';
-   // Algunos Excel dejan "Detalle" en blanco en varias filas seguidas (por
-   // ejemplo, un grupo de Landyard donde solo se llenó Color con el nombre
-   // completo del producto: "LANDYARD ROJO", "LANDYARD GRIS"...). En vez de
-   // descartar esas filas como si no tuvieran producto, se usa lo que haya
-   // en Color como nombre — así no se pierden productos por una columna que
-   // quedó vacía por error de captura.
-   if(!name&&color){name=color;color=''}
+   const name=iName>=0?String(arr[iName]??'').trim():'';
    const qty=iQty>=0?toNum(arr[iQty]):NaN;
    const price=iPrice>=0?toNum(arr[iPrice]):NaN;
    if(!name||!Number.isFinite(qty)||qty<0)continue;
@@ -316,7 +308,7 @@ function Inventory({closes,businessId,reloadInventory,monthCloses,month,rate,log
    const missingVal=iMissing>=0?String(arr[iMissing]??'').trim():'';
    if(dateVal)noteParts.push(`Fecha: ${dateVal}`);
    if(missingVal)noteParts.push(`Faltante: ${missingVal}`);
-   parsed.push({id:uid(),name,category:'',talla:iTalla>=0?String(arr[iTalla]??'').trim():'',color,qty,unitValue:0,enteredUnitValue:Number.isFinite(price)?price:0,note:noteParts.join(' · ')});
+   parsed.push({id:uid(),name,category:'',talla:iTalla>=0?String(arr[iTalla]??'').trim():'',color:iColor>=0?String(arr[iColor]??'').trim():'',qty,unitValue:0,enteredUnitValue:Number.isFinite(price)?price:0,note:noteParts.join(' · ')});
   }
   return parsed;
  };
