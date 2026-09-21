@@ -242,3 +242,11 @@ No requiere ninguna migración nueva.
 Con este cambio, un producto que baja a 0 sí queda registrado ese mes, y "Detalle de Inventario" lo va a marcar correctamente en rojo como faltante si antes tenía existencia.
 
 No se perdió ningún dato existente.
+
+
+## v3.33.2 — Dashboard: "Bancos y caja" ahora dice "Bancos y efectivo"
+No requiere ninguna migración nueva.
+
+- En el Dashboard, la tarjeta que muestra el saldo consolidado de tus cuentas ahora dice **"Bancos y efectivo"** en vez de "Bancos y caja" (mismo dato, solo cambió el nombre).
+
+No se perdió ningún dato existente.
