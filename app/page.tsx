@@ -297,7 +297,15 @@ function Inventory({closes,businessId,reloadInventory,monthCloses,month,rate,log
   const iDate=findFirstMatch(DATE_HEADERS),iMissing=findFirstMatch(MISSING_HEADERS);
   const parsed:InventoryItem[]=[];
   for(const arr of raw.slice(headerRowIdx+1)){
-   const name=iName>=0?String(arr[iName]??'').trim():'';
+   let name=iName>=0?String(arr[iName]??'').trim():'';
+   let color=iColor>=0?String(arr[iColor]??'').trim():'';
+   // Algunos Excel dejan "Detalle" en blanco en varias filas seguidas (por
+   // ejemplo, un grupo de Landyard donde solo se llenó Color con el nombre
+   // completo del producto: "LANDYARD ROJO", "LANDYARD GRIS"...). En vez de
+   // descartar esas filas como si no tuvieran producto, se usa lo que haya
+   // en Color como nombre — así no se pierden productos por una columna que
+   // quedó vacía por error de captura.
+   if(!name&&color){name=color;color=''}
    const qty=iQty>=0?toNum(arr[iQty]):NaN;
    const price=iPrice>=0?toNum(arr[iPrice]):NaN;
    if(!name||!Number.isFinite(qty)||qty<0)continue;
@@ -308,7 +316,7 @@ function Inventory({closes,businessId,reloadInventory,monthCloses,month,rate,log
    const missingVal=iMissing>=0?String(arr[iMissing]??'').trim():'';
    if(dateVal)noteParts.push(`Fecha: ${dateVal}`);
    if(missingVal)noteParts.push(`Faltante: ${missingVal}`);
-   parsed.push({id:uid(),name,category:'',talla:iTalla>=0?String(arr[iTalla]??'').trim():'',color:iColor>=0?String(arr[iColor]??'').trim():'',qty,unitValue:0,enteredUnitValue:Number.isFinite(price)?price:0,note:noteParts.join(' · ')});
+   parsed.push({id:uid(),name,category:'',talla:iTalla>=0?String(arr[iTalla]??'').trim():'',color,qty,unitValue:0,enteredUnitValue:Number.isFinite(price)?price:0,note:noteParts.join(' · ')});
   }
   return parsed;
  };
