@@ -182,6 +182,36 @@ function Inventory({closes,businessId,reloadInventory,monthCloses,month,rate,log
  const fileRef=useRef<HTMLInputElement>(null);
  const toNum=(v:any):number=>{if(typeof v==='number')return v;const s=String(v??'').replace(/[^0-9.\-]/g,'');return s?Number(s):NaN};
  const norm=(s:string)=>String(s||'').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+ const NAME_HEADERS=['detalle','producto','producto / material','producto/material','nombre','descripcion'];
+ const TALLA_HEADERS=['talla','size'];
+ const COLOR_HEADERS=['color'];
+ const QTY_HEADERS=['cantidad','qty','cant'];
+ const PRICE_HEADERS=['precio','precio unitario','valor unitario','unitario'];
+ const ALL_HINTS=[...NAME_HEADERS,...TALLA_HEADERS,...COLOR_HEADERS,...QTY_HEADERS,...PRICE_HEADERS];
+ // Extrae los productos de una hoja: busca la fila de encabezados entre las
+ // primeras filas (muchos Excel traen un título o un logo arriba, como
+ // "INVENTARIO", antes de la fila con "Detalle/Talla/Color/Cantidad/Precio").
+ const extractFromSheet=(XLSX:any,sheet:any):InventoryItem[]=>{
+  const raw:any[][]=XLSX.utils.sheet_to_json(sheet,{header:1,defval:''});
+  let headerRowIdx=-1,bestHits=0;
+  for(let i=0;i<Math.min(raw.length,20);i++){
+   const hits=(raw[i]||[]).filter((cell:any)=>ALL_HINTS.includes(norm(String(cell)))).length;
+   if(hits>bestHits){bestHits=hits;headerRowIdx=i}
+  }
+  if(headerRowIdx===-1||bestHits<2)return [];
+  const headerRow=(raw[headerRowIdx]||[]).map((h:any)=>String(h||'').trim());
+  const findFirstMatch=(names:string[])=>{for(let idx=0;idx<headerRow.length;idx++)if(names.includes(norm(headerRow[idx])))return idx;return -1};
+  const iName=findFirstMatch(NAME_HEADERS),iTalla=findFirstMatch(TALLA_HEADERS),iColor=findFirstMatch(COLOR_HEADERS),iQty=findFirstMatch(QTY_HEADERS),iPrice=findFirstMatch(PRICE_HEADERS);
+  const parsed:InventoryItem[]=[];
+  for(const arr of raw.slice(headerRowIdx+1)){
+   const name=iName>=0?String(arr[iName]??'').trim():'';
+   const qty=iQty>=0?toNum(arr[iQty]):NaN;
+   const price=iPrice>=0?toNum(arr[iPrice]):NaN;
+   if(!name||!Number.isFinite(qty)||qty<=0)continue;
+   parsed.push({id:uid(),name,category:'',talla:iTalla>=0?String(arr[iTalla]??'').trim():'',color:iColor>=0?String(arr[iColor]??'').trim():'',qty,unitValue:0,enteredUnitValue:Number.isFinite(price)?price:0});
+  }
+  return parsed;
+ };
  const parseFile=async(file:File)=>{
   setImportMessage('');setImportPreview(null);
   if(closed){setImportMessage('Este mes ya está cerrado, no se puede importar.');return}
@@ -190,23 +220,12 @@ function Inventory({closes,businessId,reloadInventory,monthCloses,month,rate,log
    const XLSX=await import('xlsx');
    const isCsv=/\.csv$/i.test(file.name);
    const wb=isCsv?XLSX.read(await file.text(),{type:'string'}):XLSX.read(await file.arrayBuffer(),{type:'array'});
-   const sheet=wb.Sheets[wb.SheetNames[0]];
-   const rows:any[]=XLSX.utils.sheet_to_json(sheet,{defval:''});
-   const findKey=(row:any,names:string[])=>Object.keys(row).find(k=>names.includes(norm(k)));
-   const parsed:InventoryItem[]=[];
-   for(const row of rows){
-    const kName=findKey(row,['detalle','producto','producto / material','producto/material','nombre','descripcion']);
-    const kTalla=findKey(row,['talla','size']);
-    const kColor=findKey(row,['color']);
-    const kQty=findKey(row,['cantidad','qty','cant']);
-    const kPrice=findKey(row,['precio','precio unitario','valor unitario','unitario']);
-    const name=kName?String(row[kName]).trim():'';
-    const qty=kQty!==undefined?toNum(row[kQty]):NaN;
-    const price=kPrice!==undefined?toNum(row[kPrice]):NaN;
-    if(!name||!Number.isFinite(qty)||qty<=0)continue;
-    parsed.push({id:uid(),name,category:'',talla:kTalla?String(row[kTalla]).trim():'',color:kColor?String(row[kColor]).trim():'',qty,unitValue:0,enteredUnitValue:Number.isFinite(price)?price:0});
+   let parsed:InventoryItem[]=[];
+   for(const sheetName of wb.SheetNames){
+    const found=extractFromSheet(XLSX,wb.Sheets[sheetName]);
+    if(found.length>parsed.length)parsed=found;
    }
-   if(!parsed.length){setImportMessage('No se encontraron filas válidas. Revisa que el archivo tenga columnas Detalle, Cantidad y Precio (Talla y Color son opcionales).')}
+   if(!parsed.length){setImportMessage('No se encontraron filas válidas. Revisa que el archivo tenga una fila de encabezados con Detalle, Cantidad y Precio (Talla y Color son opcionales) y al menos una fila de datos debajo.')}
    else{setImportPreview(parsed);setImportMessage(`Se leyeron ${parsed.length} productos del archivo. Revisa la vista previa y confirma para guardarlos.`)}
   }catch(err){console.error(err);setImportMessage('No se pudo leer el archivo. Asegúrate de que sea un Excel (.xlsx) o CSV válido.')}
   finally{setImportBusy(false)}

@@ -147,3 +147,8 @@ Requiere correr en Supabase, en este orden: `migration/009_custom_categories_and
 - **Inventario, importar desde Excel**: nueva sección "Importar inventario desde Excel" en la pestaña Inventario. Subes tu archivo `.xlsx` o `.csv` con columnas Detalle, Talla, Color, Cantidad y Precio (el orden de las columnas no importa, se reconocen por el nombre), eliges en qué moneda vienen los precios del archivo, revisas una vista previa y confirmas para guardar todos los productos de una sola vez en el inventario del mes seleccionado. La categoría de todo el archivo importado es la que tengas elegida en el formulario de arriba.
 
 No se perdió ningún dato existente: los productos de inventario que ya tenías se quedan igual, solo con Talla y Color vacíos hasta que los edites o los vuelvas a registrar.
+
+## v3.26.1 — Corrección: importar Excel con título arriba de la tabla
+Se corrigió el error "No se encontraron filas válidas" al importar un inventario cuyo Excel tiene un título (por ejemplo "INVENTARIO") en la primera fila, antes de la fila con los nombres de columna (Detalle, Talla, Color, Cantidad, Precio) — como en tu archivo. Ahora la app busca automáticamente cuál fila es la de encabezados entre las primeras filas de cada hoja, en vez de asumir que siempre es la primera. También revisa todas las hojas del archivo (por si el inventario no está en la primera) y usa la que tenga más productos válidos. Si tu archivo tiene una columna "Cantidad" repetida (como una de cantidad esperada y otra de cantidad contada), se usa la primera que aparece de izquierda a derecha.
+
+No requiere ninguna migración nueva.
