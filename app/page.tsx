@@ -6,11 +6,11 @@ import ModuleIcon from '../components/ModuleIcon';
 import Users from '../components/Users';
 import {Sales,Expenses,SalesMethods} from '../components/SalesWorkspace';
 import type {Payment,Sale,Expense,Account,InventoryItem,InventoryClose,DebtPayment,MonthClose,Quote,InitialBase,AppUser,Debt,DebtPaymentRecord,AccountBalanceEntry} from '../lib/db';
-import {uid,ensureBusiness,fetchBusinessSettings,updateRateRemote,confirmInitialBaseRemote,useSalesCloud,useExpensesCloud,useAccountsCloud,useQuotesCloud,useMonthClosesCloud,useDebtsCloud,loadInventory,addInventoryItemRemote,addInventoryItemsBulkRemote,updateInventoryItemRemote,deleteInventoryItemRemote,deleteInventoryMonthRemote,logActivity,loadDebtPayments,addDebtPaymentRemote,removeDebtPaymentRemote,loadAccountBalanceHistory,addAccountBalanceHistoryRemote,removeAccountBalanceHistoryRemote,addInventoryCategoryRemote,addPaymentMethodRemote,addInventorySizeRemote} from '../lib/db';
+import {uid,ensureBusiness,fetchBusinessSettings,updateRateRemote,confirmInitialBaseRemote,useSalesCloud,useExpensesCloud,useAccountsCloud,useQuotesCloud,useMonthClosesCloud,useDebtsCloud,loadInventory,addInventoryItemRemote,addInventoryItemsBulkRemote,updateInventoryItemRemote,deleteInventoryItemRemote,deleteInventoryMonthRemote,logActivity,loadDebtPayments,addDebtPaymentRemote,removeDebtPaymentRemote,loadAccountBalanceHistory,addAccountBalanceHistoryRemote,removeAccountBalanceHistoryRemote,addInventoryCategoryRemote,addPaymentMethodRemote,addInventorySizeRemote,setInventoryBaselineMonthRemote} from '../lib/db';
 
 const CURRENT_USER_KEY='impresa_current_user';
 
-const tabs=['Dashboard','Ventas','Ventas Transferencia Efectivo','Gastos','Inventario','Detalle de Inventario','Banco y Efectivo','Contabilidad','Deudas','Cierre de mes','Cotizaciones','Usuarios','Reportes','Configuración'];
+const tabs=['Dashboard','Ventas','Gastos','Inventario','Banco y Efectivo','Contabilidad','Deudas','Cierre de mes','Cotizaciones','Usuarios','Reportes','Configuración'];
 const today=()=>new Date().toISOString().slice(0,10);
 const monthNow=()=>new Date().toISOString().slice(0,7);
 const money=(n:number,c:'C$'|'US$'='C$')=>`${c}${new Intl.NumberFormat('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(n)||0)}`;
@@ -23,11 +23,16 @@ export default function Home(){
  const [bootError,setBootError]=useState('');
  const [settingsReady,setSettingsReady]=useState(false);
  const [tab,setTab]=useState('Dashboard'),[month,setMonth]=useState(monthNow());
+ // "Ventas Transferencia Efectivo" y "Detalle de Inventario" ya no son pestañas aparte del menú:
+ // ahora son una vista dentro de Ventas y de Inventario, con un selector chiquito en el encabezado.
+ const [ventasView,setVentasView]=useState<'Ventas'|'Ventas Transferencia Efectivo'>('Ventas');
+ const [inventarioView,setInventarioView]=useState<'Inventario'|'Detalle de Inventario'>('Inventario');
  const [rate,setRateLocal]=useState(37);
  const [initialBase,setInitialBaseLocal]=useState<InitialBase>({confirmed:false,baseUSD:4100,baseC:0});
  const [inventoryCategories,setInventoryCategories]=useState<string[]>(['Camisas','Hilos','Tintas','Vinil','Sublimación','Empaque','Otros']);
  const [paymentMethods,setPaymentMethods]=useState<string[]>(['Transferencia','Efectivo']);
  const [inventorySizes,setInventorySizes]=useState<string[]>(['XS','S','M','L','XL','XXL','2','4','6','8','10','12','14','16']);
+ const [inventoryBaselineMonth,setInventoryBaselineMonthLocal]=useState<string|null>(null);
 
  // Inicio de sesión con usuario y contraseña (pestaña Usuarios). Una vez
  // que alguien entra, este navegador lo recuerda (no hay que volver a
@@ -49,7 +54,7 @@ export default function Home(){
  useEffect(()=>{
   if(!businessId)return;
   let cancelled=false;
-  fetchBusinessSettings(businessId).then(s=>{if(!cancelled){setRateLocal(s.rate);setInitialBaseLocal(s.initialBase);setInventoryCategories(s.inventoryCategories);setPaymentMethods(s.paymentMethods);setInventorySizes(s.inventorySizes);setSettingsReady(true)}}).catch(err=>{console.error('IMPRESA: no se pudo cargar la configuración',err);if(!cancelled)setSettingsReady(true)});
+  fetchBusinessSettings(businessId).then(s=>{if(!cancelled){setRateLocal(s.rate);setInitialBaseLocal(s.initialBase);setInventoryCategories(s.inventoryCategories);setPaymentMethods(s.paymentMethods);setInventorySizes(s.inventorySizes);setInventoryBaselineMonthLocal(s.inventoryBaselineMonth);setSettingsReady(true)}}).catch(err=>{console.error('IMPRESA: no se pudo cargar la configuración',err);if(!cancelled)setSettingsReady(true)});
   return ()=>{cancelled=true}
  },[businessId]);
 
@@ -70,6 +75,11 @@ export default function Home(){
   const next=await addInventorySizeRemote(businessId,name);
   setInventorySizes(next);
   return next;
+ };
+ const setInventoryBaselineMonth=async(m:string|null)=>{
+  if(!businessId)throw new Error('Todavía se está preparando tu negocio, intenta de nuevo en un momento.');
+  await setInventoryBaselineMonthRemote(businessId,m);
+  setInventoryBaselineMonthLocal(m);
  };
 
  const logCtx={userId:currentUser?.id,username:currentUser?.username||''};
@@ -106,15 +116,19 @@ export default function Home(){
  },[businessId]);
  const reloadAccountHistory=()=>{if(businessId)loadAccountBalanceHistory(businessId).then(setAccountHistoryLocal).catch(err=>console.error(err))};
 
- const props={sales,setSales,expenses,setExpenses,accounts,setAccounts,closes,businessId,reloadInventory,monthCloses,addMonthClose,initialBase,setInitialBase,quotes,setQuotes,debts,setDebts,debtPayments,reloadDebtPayments,accountHistory,reloadAccountHistory,month,rate,setRate,logCtx,inventoryCategories,addInventoryCategory,paymentMethods,addPaymentMethod,inventorySizes,addInventorySize};
+ const props={sales,setSales,expenses,setExpenses,accounts,setAccounts,closes,businessId,reloadInventory,monthCloses,addMonthClose,initialBase,setInitialBase,quotes,setQuotes,debts,setDebts,debtPayments,reloadDebtPayments,accountHistory,reloadAccountHistory,month,rate,setRate,logCtx,inventoryCategories,addInventoryCategory,paymentMethods,addPaymentMethod,inventorySizes,addInventorySize,inventoryBaselineMonth,setInventoryBaselineMonth};
 
  if(!supabaseConfigured)return <Auth businessId={null} onLogin={()=>{}}/>;
  if(bootError)return <div className="loadingScreen">{bootError}</div>;
  if(!businessId||!settingsReady)return <div className="loadingScreen">Preparando tu negocio…</div>;
  if(!currentUser)return <Auth businessId={businessId} onLogin={handleLogin}/>;
 
- return <div className="app"><aside><div className="brandWrap"><div className="brandMark">I</div><div><div className="brand">IMPRESA</div><div className="sub">Gestión del negocio</div></div></div><div className="workspace">OPERACIONES · NICARAGUA</div><nav aria-label="Módulos de IMPRESA">{tabs.map(x=><button key={x} className={tab===x?'active':''} aria-current={tab===x?'page':undefined} onClick={()=>setTab(x)}><span className="navIcon"><ModuleIcon name={x}/></span><span>{x}</span></button>)}</nav><div className="sessionFooter"><small>{currentUser.username}</small><button className="small" onClick={handleLogout}>Cerrar sesión</button></div></aside><main><header><div className="pageHeading"><span className="pageIcon"><ModuleIcon name={tab}/></span><div><div className="eyebrow">IMPRESA / {month}</div><h1>{tab}</h1><p>Centro administrativo y financiero del negocio</p></div></div><div className="actions"><label className="month"><span>Mes</span><input type="month" value={month} onChange={e=>setMonth(e.target.value)}/></label><button className="btn" onClick={()=>setTab('Gastos')}>+ Gasto</button><button className="btn primary" onClick={()=>setTab('Ventas')}>+ Venta</button></div></header>
- {tab==='Dashboard'?<Dashboard {...props}/>:tab==='Ventas'?<Sales {...props}/>:tab==='Ventas Transferencia Efectivo'?<SalesMethods {...props}/>:tab==='Gastos'?<Expenses {...props}/>:tab==='Inventario'?<Inventory {...props}/>:tab==='Detalle de Inventario'?<InventoryDetail {...props}/>:tab==='Banco y Efectivo'?<Accounts {...props}/>:tab==='Contabilidad'?<Accounting {...props}/>:tab==='Cierre de mes'?<MonthClosing {...props}/>:tab==='Deudas'?<Debts {...props}/>:tab==='Cotizaciones'?<Quotes {...props}/>:tab==='Usuarios'?<Users businessId={businessId} currentUser={currentUser}/>:tab==='Reportes'?<Reports {...props}/>:<Settings {...props}/>}
+ const headingLabel=tab==='Ventas'?ventasView:tab==='Inventario'?inventarioView:tab;
+ return <div className="app"><aside><div className="brandWrap"><div className="brandMark">I</div><div><div className="brand">IMPRESA</div><div className="sub">Gestión del negocio</div></div></div><div className="workspace">OPERACIONES · NICARAGUA</div><nav aria-label="Módulos de IMPRESA">{tabs.map(x=><button key={x} className={tab===x?'active':''} aria-current={tab===x?'page':undefined} onClick={()=>setTab(x)}><span className="navIcon"><ModuleIcon name={x}/></span><span>{x}</span></button>)}</nav><div className="sessionFooter"><small>{currentUser.username}</small><button className="small" onClick={handleLogout}>Cerrar sesión</button></div></aside><main><header><div className="pageHeading"><span className="pageIcon"><ModuleIcon name={headingLabel}/></span><div><div className="eyebrow">IMPRESA / {month}</div><h1>{headingLabel}</h1><p>Centro administrativo y financiero del negocio</p></div></div>
+ {tab==='Ventas'&&<div className="subTabs" role="tablist" aria-label="Vista de Ventas">{(['Ventas','Ventas Transferencia Efectivo'] as const).map(v=><button key={v} type="button" role="tab" aria-selected={ventasView===v} className={ventasView===v?'active':''} onClick={()=>setVentasView(v)}>{v}</button>)}</div>}
+ {tab==='Inventario'&&<div className="subTabs" role="tablist" aria-label="Vista de Inventario">{(['Inventario','Detalle de Inventario'] as const).map(v=><button key={v} type="button" role="tab" aria-selected={inventarioView===v} className={inventarioView===v?'active':''} onClick={()=>setInventarioView(v)}>{v}</button>)}</div>}
+ <div className="actions"><label className="month"><span>Mes</span><input type="month" value={month} onChange={e=>setMonth(e.target.value)}/></label><button className="btn" onClick={()=>setTab('Gastos')}>+ Gasto</button><button className="btn primary" onClick={()=>{setTab('Ventas');setVentasView('Ventas')}}>+ Venta</button></div></header>
+ {tab==='Dashboard'?<Dashboard {...props}/>:tab==='Ventas'?(ventasView==='Ventas'?<Sales {...props}/>:<SalesMethods {...props}/>):tab==='Gastos'?<Expenses {...props}/>:tab==='Inventario'?(inventarioView==='Inventario'?<Inventory {...props}/>:<InventoryDetail {...props}/>):tab==='Banco y Efectivo'?<Accounts {...props}/>:tab==='Contabilidad'?<Accounting {...props}/>:tab==='Cierre de mes'?<MonthClosing {...props}/>:tab==='Deudas'?<Debts {...props}/>:tab==='Cotizaciones'?<Quotes {...props}/>:tab==='Usuarios'?<Users businessId={businessId} currentUser={currentUser}/>:tab==='Reportes'?<Reports {...props}/>:<Settings {...props}/>}
  </main></div>
 }
 function Dashboard({sales,expenses,accounts,closes,monthCloses,month,rate}:any){
@@ -165,7 +179,7 @@ function Accounts({accounts,setAccounts,rate,businessId,logCtx,accountHistory,re
   </Panel>
  })()}
  <Panel title="Agregar cuenta o caja"><div className="form inline"><Input l="Nombre (ej. BAC Dólares)" v={f.name} s={v=>setF({...f,name:v})}/><Select l="Moneda" v={f.currency} s={v=>setF({...f,currency:v})} opts={['C$','US$']}/><button className="btn primary" onClick={add}>Agregar cuenta</button></div><div className="note">Tipo de cambio actual del sistema: C${rate.toFixed(2)} = US$1.00. El resumen convierte automáticamente todas las cuentas. Cada vez que actualizas el saldo de una cuenta, el saldo anterior queda guardado en su "Historial".</div></Panel></>}
-function Inventory({closes,businessId,reloadInventory,monthCloses,month,rate,logCtx,inventoryCategories,addInventoryCategory,inventorySizes,addInventorySize}:any){
+function Inventory({closes,businessId,reloadInventory,monthCloses,month,rate,logCtx,inventoryCategories,addInventoryCategory,inventorySizes,addInventorySize,inventoryBaselineMonth,setInventoryBaselineMonth}:any){
  const existing=[...closes].reverse().find((x:InventoryClose)=>x.month===month);
  const items=existing?.items||[];
  const categories:string[]=(inventoryCategories&&inventoryCategories.length)?inventoryCategories:['Camisas','Hilos','Tintas','Vinil','Sublimación','Empaque','Otros'];
@@ -330,12 +344,31 @@ function Inventory({closes,businessId,reloadInventory,monthCloses,month,rate,log
  </>}
  </>}
  </Panel>
- <Panel title="Historial de inventarios"><Table heads={['Mes','Fecha','Productos/materiales','Total C$','Total US$','Notas','Acción']} rows={[...closes].sort((a:InventoryClose,b:InventoryClose)=>b.month.localeCompare(a.month)).map((x:InventoryClose)=>[x.month,x.date,x.items.length,money(x.total,'C$'),money(rate>0?x.total/rate:0,'US$'),x.notes,<button className="dangerSmall" onClick={()=>{if(confirm(`¿Borrar el inventario de ${x.month}?`))removeMonth(x.month)}}>Borrar</button>])}/></Panel></>
+ <Panel title="Historial de inventarios">
+  <p className="muted">El <b>Inventario Inicial</b> es tu punto de partida (el mes desde el cual quieres empezar a comparar). Marca un mes como inicial una sola vez — desde ahí, "Detalle de Inventario" te muestra cuánto ha bajado cada producto entre ese inventario inicial y tu conteo más reciente.</p>
+  <Table heads={['Mes','Fecha','Productos/materiales','Total C$','Total US$','Notas','Inventario Inicial','Acción']} rows={[...closes].sort((a:InventoryClose,b:InventoryClose)=>b.month.localeCompare(a.month)).map((x:InventoryClose)=>[x.month,x.date,x.items.length,money(x.total,'C$'),money(rate>0?x.total/rate:0,'US$'),x.notes,
+   x.month===inventoryBaselineMonth?<span className="baselineBadge">★ Inicial</span>:<button className="small" onClick={async()=>{try{await setInventoryBaselineMonth(x.month)}catch(err){console.error(err);alert('No se pudo guardar el inventario inicial en la nube.')}}}>Marcar como inicial</button>,
+   <div className="actions">{x.month===inventoryBaselineMonth&&<button className="small" onClick={async()=>{try{await setInventoryBaselineMonth(null)}catch(err){console.error(err);alert('No se pudo quitar el inventario inicial en la nube.')}}}>Quitar inicial</button>}<button className="dangerSmall" onClick={()=>{if(confirm(`¿Borrar el inventario de ${x.month}?`))removeMonth(x.month)}}>Borrar</button></div>])}/>
+ </Panel></>
 }
 const MONTH_LABELS=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 function inventoryProductKey(x:{name:string;talla?:string;color?:string}){return [x.name,x.talla||'',x.color||''].map(v=>v.trim().toLowerCase()).join('|')}
-function InventoryDetail({closes,monthCloses}:any){
+function InventoryDetail({closes,monthCloses,inventoryBaselineMonth}:any){
  const allMonths=Array.from(new Set((closes as InventoryClose[]).map(x=>x.month))).sort();
+ const closeByMonthAll:Record<string,InventoryClose>={};
+ (closes as InventoryClose[]).forEach(c=>{closeByMonthAll[c.month]=c});
+ const closedMonthSetAll=new Set(((monthCloses||[]) as MonthClose[]).map(x=>x.month));
+ const baselineMonth=(inventoryBaselineMonth&&closeByMonthAll[inventoryBaselineMonth])?inventoryBaselineMonth:null;
+ const compareCandidates=allMonths.filter(m=>m!==baselineMonth);
+ const [compareMonthSel,setCompareMonthSel]=useState('');
+ const compareMonth=(compareMonthSel&&closeByMonthAll[compareMonthSel])?compareMonthSel:(compareCandidates[compareCandidates.length-1]||allMonths[allMonths.length-1]||'');
+ const baselineItems=baselineMonth?closeByMonthAll[baselineMonth].items:[];
+ const compareItems=compareMonth?closeByMonthAll[compareMonth].items:[];
+ const baselineQty:Record<string,number>={},compareQty:Record<string,number>={},compareMeta:Record<string,{name:string;talla:string;color:string}>={};
+ baselineItems.forEach(it=>{const k=inventoryProductKey(it);baselineQty[k]=(baselineQty[k]||0)+it.qty;if(!compareMeta[k])compareMeta[k]={name:it.name,talla:it.talla||'',color:it.color||''}});
+ compareItems.forEach(it=>{const k=inventoryProductKey(it);compareQty[k]=(compareQty[k]||0)+it.qty;if(!compareMeta[k])compareMeta[k]={name:it.name,talla:it.talla||'',color:it.color||''}});
+ const compareKeys=Object.keys(compareMeta).sort((a,b)=>compareMeta[a].name.localeCompare(compareMeta[b].name)||compareMeta[a].talla.localeCompare(compareMeta[b].talla)||compareMeta[a].color.localeCompare(compareMeta[b].color));
+ const compareRows=compareKeys.map(k=>{const before=baselineQty[k]||0,after=compareQty[k]||0;return {...compareMeta[k],before,after,diff:before-after}});
  const years=Array.from(new Set(allMonths.map(m=>m.slice(0,4)))).sort().reverse();
  const currentYear=String(new Date().getFullYear());
  const [year,setYear]=useState(years[0]||currentYear);
@@ -384,6 +417,14 @@ function InventoryDetail({closes,monthCloses}:any){
   });
  });
  return <>
+ <Panel title="Inventario Inicial vs. Inventario Actual">
+  {!baselineMonth?<Empty text={'Todavía no has marcado un Inventario Inicial. Ve a Inventario → Historial de inventarios y presiona "Marcar como inicial" en el mes que quieras usar como punto de partida.'}/>:<>
+  <p className="muted">Compara tu <b>Inventario Inicial</b> ({baselineMonth}) contra el conteo que elijas abajo como <b>Inventario Actual</b>. Importante: esta diferencia es el movimiento total del producto desde el inicio — incluye lo que ya vendiste normalmente, porque las ventas no quedan ligadas a un producto/talla/color específico del inventario. Úsala junto con lo que tú sabes que vendiste de cada producto para decidir si de verdad falta algo, o si es solo lo que ya se vendió.</p>
+  <div className="form inline"><label><span>Inventario actual (comparar con)</span><select value={compareMonth} onChange={e=>setCompareMonthSel(e.target.value)}>{compareCandidates.map(m=><option key={m} value={m}>{m}{closedMonthSetAll.has(m)?' — cerrado':''}</option>)}</select></label></div>
+  {!compareRows.length?<Empty text="No hay productos para comparar todavía."/>:
+  <Table heads={['Producto','Talla','Color','Inventario Inicial','Inventario Actual','Total (diferencia)']} rowClasses={compareRows.map(r=>r.diff>0?'invDeficit':'')} rows={compareRows.map(r=>[r.name,r.talla||'—',r.color||'—',r.before,r.after,r.diff>0?`−${r.diff}`:r.diff<0?`+${-r.diff}`:'0'])}/>}
+  </>}
+ </Panel>
  <Panel title={`Detalle de inventario por producto · ${year}`}>
   <p className="muted">Compara, mes a mes, la cantidad contada de cada producto durante el año. Si un producto baja de un mes a otro, la casilla se marca en rojo con la diferencia — así puedes ver de un vistazo si algo faltó al actualizar el inventario. Importante: esta comparación solo se activa para un mes después de que le des <b>"Cierre de mes"</b> (Cierre de mes) — mientras el mes sigue abierto, un producto que todavía no has vuelto a contar simplemente se ve en blanco (no se supone que le faltó nada, porque puede que aún no termines el reconteo). En cuanto cierras el mes, cualquier producto que tenías registrado antes y no aparezca en el conteo nuevo de ese mes se toma como que se quedó en 0, y si antes tenías más, se marca como faltante.</p>
   <div className="form inline"><label><span>Año</span><select value={year} onChange={e=>setYear(e.target.value)}>{yearOptions.map(y=><option key={y} value={y}>{y}</option>)}</select></label></div>

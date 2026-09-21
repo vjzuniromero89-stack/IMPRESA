@@ -342,3 +342,16 @@ td.invShort{background:#fff0f0;color:#aa2936;font-weight:700;box-shadow:inset 3p
 /* Aviso ámbar (ej. tallas del Excel que no están en la lista guardada) — distinto del rojo, que se usa para pendientes/faltantes */
 .warning{background:#fff8e6;border:1px solid #f0d38a;color:#7a5b06;border-radius:8px;padding:10px 12px;font-size:13px;display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 tr.importUnknownSize td{background:#fff8e6}
+
+/* Selector chiquito en el encabezado para cambiar de vista dentro de una misma pestaña (Ventas ⇄ Ventas Transferencia Efectivo, Inventario ⇄ Detalle de Inventario) */
+.subTabs{display:flex;gap:4px;background:#e4ecf9;padding:4px;border-radius:11px;border:1px solid #cddaef}
+.subTabs button{border:none;background:transparent;padding:9px 15px;border-radius:8px;font-size:12px;font-weight:780;color:#48628c;cursor:pointer;white-space:nowrap}
+.subTabs button:hover{background:#ffffffb0;color:#173251}
+.subTabs button.active{background:#2863cd;color:#fff;box-shadow:0 3px 9px #2863cd33}
+@media(max-width:720px){.subTabs{width:100%;order:10}}
+
+/* Insignia del mes marcado como Inventario Inicial (Historial de inventarios) */
+.baselineBadge{display:inline-flex;align-items:center;gap:4px;background:#fff4d6;color:#8a6300;border:1px solid #edcf82;border-radius:999px;padding:5px 11px;font-size:12px;font-weight:780;white-space:nowrap}
+
+/* Fila con menos cantidad ahora que en el Inventario Inicial (tabla "Inventario Inicial vs. Inventario Actual") */
+tr.invDeficit td{background:#fff0f0;color:#aa2936;font-weight:700}

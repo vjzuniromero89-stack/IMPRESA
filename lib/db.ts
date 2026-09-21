@@ -152,7 +152,7 @@ const DEFAULT_INVENTORY_CATEGORIES = ['Camisas', 'Hilos', 'Tintas', 'Vinil', 'Su
 const DEFAULT_PAYMENT_METHODS = ['Transferencia', 'Efectivo'];
 const DEFAULT_INVENTORY_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '2', '4', '6', '8', '10', '12', '14', '16'];
 
-export async function fetchBusinessSettings(businessId: string): Promise<{ rate: number; initialBase: InitialBase; inventoryCategories: string[]; paymentMethods: string[]; inventorySizes: string[] }> {
+export async function fetchBusinessSettings(businessId: string): Promise<{ rate: number; initialBase: InitialBase; inventoryCategories: string[]; paymentMethods: string[]; inventorySizes: string[]; inventoryBaselineMonth: string | null }> {
   const { data, error } = await supabase.from('businesses').select('*').eq('id', businessId).single();
   if (error) throw error;
   return {
@@ -165,8 +165,13 @@ export async function fetchBusinessSettings(businessId: string): Promise<{ rate:
     },
     inventoryCategories: (Array.isArray(data.inventory_categories) && data.inventory_categories.length) ? data.inventory_categories : DEFAULT_INVENTORY_CATEGORIES,
     paymentMethods: (Array.isArray(data.payment_methods) && data.payment_methods.length) ? data.payment_methods : DEFAULT_PAYMENT_METHODS,
-    inventorySizes: (Array.isArray(data.inventory_sizes) && data.inventory_sizes.length) ? data.inventory_sizes : DEFAULT_INVENTORY_SIZES
+    inventorySizes: (Array.isArray(data.inventory_sizes) && data.inventory_sizes.length) ? data.inventory_sizes : DEFAULT_INVENTORY_SIZES,
+    inventoryBaselineMonth: data.inventory_baseline_month || null
   };
+}
+export async function setInventoryBaselineMonthRemote(businessId: string, month: string | null) {
+  const { error } = await supabase.from('businesses').update({ inventory_baseline_month: month }).eq('id', businessId);
+  if (error) throw error;
 }
 export async function updateRateRemote(businessId: string, rate: number) {
   const { error } = await supabase.from('businesses').update({ exchange_rate: rate }).eq('id', businessId);
