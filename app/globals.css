@@ -334,3 +334,7 @@ tr.saleUnpaid:hover td,tbody tr.saleUnpaid:hover td{background:#ffe1e3}
 
 /* Inventario: ícono junto al producto con nota extra (Fecha/Faltante) leída del Excel importado */
 .noteDot{color:#2863cd;cursor:help;font-size:13px}
+
+/* Detalle de Inventario: casilla marcada cuando la cantidad de un producto bajó respecto al conteo anterior */
+td.invShort{background:#fff0f0;color:#aa2936;font-weight:700;box-shadow:inset 3px 0 0 #aa2936}
+.invDiff{display:block;font-weight:600;color:#aa2936;font-size:11px}

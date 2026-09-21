@@ -10,7 +10,7 @@ import {uid,ensureBusiness,fetchBusinessSettings,updateRateRemote,confirmInitial
 
 const CURRENT_USER_KEY='impresa_current_user';
 
-const tabs=['Dashboard','Ventas','Ventas Transferencia Efectivo','Gastos','Inventario','Banco y Efectivo','Contabilidad','Deudas','Cierre de mes','Cotizaciones','Usuarios','Reportes','Configuración'];
+const tabs=['Dashboard','Ventas','Ventas Transferencia Efectivo','Gastos','Inventario','Detalle de Inventario','Banco y Efectivo','Contabilidad','Deudas','Cierre de mes','Cotizaciones','Usuarios','Reportes','Configuración'];
 const today=()=>new Date().toISOString().slice(0,10);
 const monthNow=()=>new Date().toISOString().slice(0,7);
 const money=(n:number,c:'C$'|'US$'='C$')=>`${c}${new Intl.NumberFormat('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(n)||0)}`;
@@ -107,7 +107,7 @@ export default function Home(){
  if(!currentUser)return <Auth businessId={businessId} onLogin={handleLogin}/>;
 
  return <div className="app"><aside><div className="brandWrap"><div className="brandMark">I</div><div><div className="brand">IMPRESA</div><div className="sub">Gestión del negocio</div></div></div><div className="workspace">OPERACIONES · NICARAGUA</div><nav aria-label="Módulos de IMPRESA">{tabs.map(x=><button key={x} className={tab===x?'active':''} aria-current={tab===x?'page':undefined} onClick={()=>setTab(x)}><span className="navIcon"><ModuleIcon name={x}/></span><span>{x}</span></button>)}</nav><div className="sessionFooter"><small>{currentUser.username}</small><button className="small" onClick={handleLogout}>Cerrar sesión</button></div></aside><main><header><div className="pageHeading"><span className="pageIcon"><ModuleIcon name={tab}/></span><div><div className="eyebrow">IMPRESA / {month}</div><h1>{tab}</h1><p>Centro administrativo y financiero del negocio</p></div></div><div className="actions"><label className="month"><span>Mes</span><input type="month" value={month} onChange={e=>setMonth(e.target.value)}/></label><button className="btn" onClick={()=>setTab('Gastos')}>+ Gasto</button><button className="btn primary" onClick={()=>setTab('Ventas')}>+ Venta</button></div></header>
- {tab==='Dashboard'?<Dashboard {...props}/>:tab==='Ventas'?<Sales {...props}/>:tab==='Ventas Transferencia Efectivo'?<SalesMethods {...props}/>:tab==='Gastos'?<Expenses {...props}/>:tab==='Inventario'?<Inventory {...props}/>:tab==='Banco y Efectivo'?<Accounts {...props}/>:tab==='Contabilidad'?<Accounting {...props}/>:tab==='Cierre de mes'?<MonthClosing {...props}/>:tab==='Deudas'?<Debts {...props}/>:tab==='Cotizaciones'?<Quotes {...props}/>:tab==='Usuarios'?<Users businessId={businessId} currentUser={currentUser}/>:tab==='Reportes'?<Reports {...props}/>:<Settings {...props}/>}
+ {tab==='Dashboard'?<Dashboard {...props}/>:tab==='Ventas'?<Sales {...props}/>:tab==='Ventas Transferencia Efectivo'?<SalesMethods {...props}/>:tab==='Gastos'?<Expenses {...props}/>:tab==='Inventario'?<Inventory {...props}/>:tab==='Detalle de Inventario'?<InventoryDetail {...props}/>:tab==='Banco y Efectivo'?<Accounts {...props}/>:tab==='Contabilidad'?<Accounting {...props}/>:tab==='Cierre de mes'?<MonthClosing {...props}/>:tab==='Deudas'?<Debts {...props}/>:tab==='Cotizaciones'?<Quotes {...props}/>:tab==='Usuarios'?<Users businessId={businessId} currentUser={currentUser}/>:tab==='Reportes'?<Reports {...props}/>:<Settings {...props}/>}
  </main></div>
 }
 function Dashboard({sales,expenses,accounts,closes,monthCloses,month,rate}:any){
@@ -307,6 +307,66 @@ function Inventory({closes,businessId,reloadInventory,monthCloses,month,rate,log
  </>}
  </Panel>
  <Panel title="Historial de inventarios"><Table heads={['Mes','Fecha','Productos/materiales','Total C$','Total US$','Notas','Acción']} rows={[...closes].sort((a:InventoryClose,b:InventoryClose)=>b.month.localeCompare(a.month)).map((x:InventoryClose)=>[x.month,x.date,x.items.length,money(x.total,'C$'),money(rate>0?x.total/rate:0,'US$'),x.notes,<button className="dangerSmall" onClick={()=>{if(confirm(`¿Borrar el inventario de ${x.month}?`))removeMonth(x.month)}}>Borrar</button>])}/></Panel></>
+}
+const MONTH_LABELS=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+function inventoryProductKey(x:{name:string;talla?:string;color?:string}){return [x.name,x.talla||'',x.color||''].map(v=>v.trim().toLowerCase()).join('|')}
+function InventoryDetail({closes}:any){
+ const allMonths=Array.from(new Set((closes as InventoryClose[]).map(x=>x.month))).sort();
+ const years=Array.from(new Set(allMonths.map(m=>m.slice(0,4)))).sort().reverse();
+ const currentYear=String(new Date().getFullYear());
+ const [year,setYear]=useState(years[0]||currentYear);
+ const yearOptions=years.includes(year)?years:[year,...years];
+ const monthsInYear=Array.from({length:12},(_,i)=>`${year}-${String(i+1).padStart(2,'0')}`);
+ // Un mes puede tener más de un registro de cierre guardado; si pasa, se usa el más reciente (igual que en el resto de la app).
+ const closeByMonth:Record<string,InventoryClose>={};
+ (closes as InventoryClose[]).forEach(c=>{closeByMonth[c.month]=c});
+ const qtyByProductMonth:Record<string,Record<string,number>>={};
+ const productMeta:Record<string,{name:string;talla:string;color:string}>={};
+ monthsInYear.forEach(m=>{
+  const c=closeByMonth[m];
+  if(!c)return;
+  c.items.forEach(item=>{
+   const k=inventoryProductKey(item);
+   if(!productMeta[k])productMeta[k]={name:item.name,talla:item.talla||'',color:item.color||''};
+   qtyByProductMonth[k]=qtyByProductMonth[k]||{};
+   qtyByProductMonth[k][m]=(qtyByProductMonth[k][m]||0)+item.qty;
+  });
+ });
+ const products=Object.keys(productMeta).sort((a,b)=>productMeta[a].name.localeCompare(productMeta[b].name)||productMeta[a].talla.localeCompare(productMeta[b].talla)||productMeta[a].color.localeCompare(productMeta[b].color));
+ const prevWithData=(k:string,idx:number):number|undefined=>{for(let j=idx-1;j>=0;j--){const v=qtyByProductMonth[k]?.[monthsInYear[j]];if(v!==undefined)return v}return undefined};
+ type Faltante={name:string;talla:string;color:string;from:string;to:string;before:number;after:number;diff:number};
+ const faltantes:Faltante[]=[];
+ products.forEach(k=>{
+  monthsInYear.forEach((m,idx)=>{
+   const qty=qtyByProductMonth[k]?.[m];
+   if(qty===undefined)return;
+   const prevIdx=(()=>{for(let j=idx-1;j>=0;j--){if(qtyByProductMonth[k]?.[monthsInYear[j]]!==undefined)return j}return -1})();
+   if(prevIdx===-1)return;
+   const before=qtyByProductMonth[k][monthsInYear[prevIdx]];
+   if(qty<before)faltantes.push({name:productMeta[k].name,talla:productMeta[k].talla,color:productMeta[k].color,from:monthsInYear[prevIdx],to:m,before,after:qty,diff:before-qty});
+  });
+ });
+ return <>
+ <Panel title={`Detalle de inventario por producto · ${year}`}>
+  <p className="muted">Compara, mes a mes, la cantidad contada de cada producto durante el año. Si un producto baja de un mes a otro, la casilla se marca en rojo con la diferencia — así puedes ver de un vistazo si algo faltó al actualizar el inventario.</p>
+  <div className="form inline"><label><span>Año</span><select value={year} onChange={e=>setYear(e.target.value)}>{yearOptions.map(y=><option key={y} value={y}>{y}</option>)}</select></label></div>
+  {!products.length?<Empty text="Todavía no hay conteos de inventario registrados en este año."/>:
+  <div className="tablewrap"><table><thead><tr><th>Detalle</th><th>Talla</th><th>Color</th>{monthsInYear.map((m,i)=><th key={m}>{MONTH_LABELS[i]}</th>)}</tr></thead><tbody>
+   {products.map(k=><tr key={k}><td>{productMeta[k].name}</td><td>{productMeta[k].talla||'—'}</td><td>{productMeta[k].color||'—'}</td>
+    {monthsInYear.map((m,idx)=>{
+     const qty=qtyByProductMonth[k]?.[m];
+     const before=prevWithData(k,idx);
+     const short=qty!==undefined&&before!==undefined&&qty<before;
+     return <td key={m} className={short?'invShort':''}>{qty===undefined?'—':qty}{short&&<small className="invDiff">−{before-qty}</small>}</td>;
+    })}
+   </tr>)}
+  </tbody></table></div>}
+ </Panel>
+ <Panel title="Posibles faltantes detectados">
+  {!faltantes.length?<Empty text="No se detectaron bajadas de cantidad entre meses contados este año."/>:
+  <Table heads={['Producto','Talla','Color','De','A','Antes','Ahora','Faltante']} rows={faltantes.map(f=>[f.name,f.talla||'—',f.color||'—',MONTH_LABELS[+f.from.slice(5,7)-1],MONTH_LABELS[+f.to.slice(5,7)-1],f.before,f.after,f.diff])}/>}
+ </Panel>
+ </>;
 }
 function MonthClosing({closes,monthCloses,addMonthClose,sales,expenses,accounts,month,rate,debts,debtPayments}:any){
  const inv=[...closes].reverse().find((x:InventoryClose)=>x.month===month),closed=monthCloses.find((x:MonthClose)=>x.month===month),previous=[...monthCloses].filter((x:MonthClose)=>x.month<month).sort((a:MonthClose,b:MonthClose)=>b.month.localeCompare(a.month))[0];
