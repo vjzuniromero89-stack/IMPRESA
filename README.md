@@ -189,3 +189,13 @@ Requiere correr `migration/013_inventory_baseline.sql` (además de las migracion
 - **Importante sobre las ventas y el faltante real**: como comentaste, esta diferencia no resta automáticamente lo que vendiste, porque tus ventas se registran por categoría general (por ejemplo "Camisas"), no por producto/talla/color específico del inventario — la app no tiene forma de saber que "Camisa 12Y Fucsia, cantidad 2" fue exactamente lo que bajó por esa venta. Por eso el número que ves aquí es el **movimiento total** de ese producto desde tu inventario inicial (ventas normales + cualquier faltante real, todo junto). Tienes que compararlo con lo que tú sabes que vendiste de ese producto específico para decidir si de verdad falta algo o si es solo lo ya vendido. Si más adelante quieres que el sistema reste las ventas automáticamente, se puede hacer, pero implicaría cambiar cómo registras una venta para que elijas el producto/talla/color exacto del inventario en cada venta (en vez de solo la categoría) — es un cambio más grande, avísame si quieres que lo hagamos.
 
 No se perdió ningún dato existente.
+
+
+## v3.31.0 — Borrar categorías, tallas y métodos de pago de la lista (botón × en rojo)
+No requiere ninguna migración nueva (usa las mismas columnas de las versiones anteriores).
+
+- **Inventario, Categoría y Talla**: junto al botón **+** ahora hay un botón **×** en rojo. Al elegir una categoría o talla de la lista y presionar el ×, se borra de la lista (con una confirmación antes de hacerlo). Los productos que ya tenías registrados con esa categoría o talla no cambian — el dato se conserva igual, solo deja de aparecer como opción para productos nuevos.
+- **Ventas, Método de pago**: mismo botón × junto al +, tanto al registrar/editar una venta como al registrar un abono. Igual que arriba, las ventas ya registradas con ese método conservan su dato.
+- Así puedes borrar la lista de tallas que trae la app por defecto y dejar solo las que realmente usas.
+
+No se perdió ningún dato existente.

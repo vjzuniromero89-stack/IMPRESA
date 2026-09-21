@@ -209,6 +209,27 @@ export async function addPaymentMethodRemote(businessId: string, method: string)
 export async function addInventorySizeRemote(businessId: string, size: string): Promise<string[]> {
   return appendBusinessListRemote(businessId, 'inventory_sizes', DEFAULT_INVENTORY_SIZES, size);
 }
+// Quitar un valor de una de estas listas guardadas. Lo que ya está usado en
+// productos/ventas anteriores conserva su dato tal cual — esto solo lo quita
+// de la lista para que no se vuelva a elegir en registros nuevos.
+async function removeBusinessListItemRemote(businessId: string, column: 'inventory_categories' | 'payment_methods' | 'inventory_sizes', fallback: string[], value: string): Promise<string[]> {
+  const { data, error } = await supabase.from('businesses').select(column).eq('id', businessId).single();
+  if (error) throw error;
+  const current: string[] = (Array.isArray((data as any)?.[column]) && (data as any)[column].length) ? (data as any)[column] : fallback;
+  const next = current.filter(c => c.toLowerCase() !== value.trim().toLowerCase());
+  const { error: e2 } = await supabase.from('businesses').update({ [column]: next }).eq('id', businessId);
+  if (e2) throw e2;
+  return next;
+}
+export async function removeInventoryCategoryRemote(businessId: string, category: string): Promise<string[]> {
+  return removeBusinessListItemRemote(businessId, 'inventory_categories', DEFAULT_INVENTORY_CATEGORIES, category);
+}
+export async function removePaymentMethodRemote(businessId: string, method: string): Promise<string[]> {
+  return removeBusinessListItemRemote(businessId, 'payment_methods', DEFAULT_PAYMENT_METHODS, method);
+}
+export async function removeInventorySizeRemote(businessId: string, size: string): Promise<string[]> {
+  return removeBusinessListItemRemote(businessId, 'inventory_sizes', DEFAULT_INVENTORY_SIZES, size);
+}
 
 // ---------- Mapeos por entidad (fila de Supabase <-> objeto de la app) ----------
 async function loadSales(businessId: string): Promise<Sale[]> {

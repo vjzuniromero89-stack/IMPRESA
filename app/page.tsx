@@ -6,7 +6,7 @@ import ModuleIcon from '../components/ModuleIcon';
 import Users from '../components/Users';
 import {Sales,Expenses,SalesMethods} from '../components/SalesWorkspace';
 import type {Payment,Sale,Expense,Account,InventoryItem,InventoryClose,DebtPayment,MonthClose,Quote,InitialBase,AppUser,Debt,DebtPaymentRecord,AccountBalanceEntry} from '../lib/db';
-import {uid,ensureBusiness,fetchBusinessSettings,updateRateRemote,confirmInitialBaseRemote,useSalesCloud,useExpensesCloud,useAccountsCloud,useQuotesCloud,useMonthClosesCloud,useDebtsCloud,loadInventory,addInventoryItemRemote,addInventoryItemsBulkRemote,updateInventoryItemRemote,deleteInventoryItemRemote,deleteInventoryMonthRemote,logActivity,loadDebtPayments,addDebtPaymentRemote,removeDebtPaymentRemote,loadAccountBalanceHistory,addAccountBalanceHistoryRemote,removeAccountBalanceHistoryRemote,addInventoryCategoryRemote,addPaymentMethodRemote,addInventorySizeRemote,setInventoryBaselineMonthRemote} from '../lib/db';
+import {uid,ensureBusiness,fetchBusinessSettings,updateRateRemote,confirmInitialBaseRemote,useSalesCloud,useExpensesCloud,useAccountsCloud,useQuotesCloud,useMonthClosesCloud,useDebtsCloud,loadInventory,addInventoryItemRemote,addInventoryItemsBulkRemote,updateInventoryItemRemote,deleteInventoryItemRemote,deleteInventoryMonthRemote,logActivity,loadDebtPayments,addDebtPaymentRemote,removeDebtPaymentRemote,loadAccountBalanceHistory,addAccountBalanceHistoryRemote,removeAccountBalanceHistoryRemote,addInventoryCategoryRemote,addPaymentMethodRemote,addInventorySizeRemote,setInventoryBaselineMonthRemote,removeInventoryCategoryRemote,removePaymentMethodRemote,removeInventorySizeRemote} from '../lib/db';
 
 const CURRENT_USER_KEY='impresa_current_user';
 
@@ -81,6 +81,21 @@ export default function Home(){
   await setInventoryBaselineMonthRemote(businessId,m);
   setInventoryBaselineMonthLocal(m);
  };
+ const removeInventoryCategory=async(name:string)=>{
+  if(!businessId)throw new Error('Todavía se está preparando tu negocio, intenta de nuevo en un momento.');
+  const next=await removeInventoryCategoryRemote(businessId,name);
+  setInventoryCategories(next);
+ };
+ const removePaymentMethod=async(name:string)=>{
+  if(!businessId)throw new Error('Todavía se está preparando tu negocio, intenta de nuevo en un momento.');
+  const next=await removePaymentMethodRemote(businessId,name);
+  setPaymentMethods(next);
+ };
+ const removeInventorySize=async(name:string)=>{
+  if(!businessId)throw new Error('Todavía se está preparando tu negocio, intenta de nuevo en un momento.');
+  const next=await removeInventorySizeRemote(businessId,name);
+  setInventorySizes(next);
+ };
 
  const logCtx={userId:currentUser?.id,username:currentUser?.username||''};
  const [sales,setSales]=useSalesCloud(businessId,rate,logCtx);
@@ -116,7 +131,7 @@ export default function Home(){
  },[businessId]);
  const reloadAccountHistory=()=>{if(businessId)loadAccountBalanceHistory(businessId).then(setAccountHistoryLocal).catch(err=>console.error(err))};
 
- const props={sales,setSales,expenses,setExpenses,accounts,setAccounts,closes,businessId,reloadInventory,monthCloses,addMonthClose,initialBase,setInitialBase,quotes,setQuotes,debts,setDebts,debtPayments,reloadDebtPayments,accountHistory,reloadAccountHistory,month,rate,setRate,logCtx,inventoryCategories,addInventoryCategory,paymentMethods,addPaymentMethod,inventorySizes,addInventorySize,inventoryBaselineMonth,setInventoryBaselineMonth};
+ const props={sales,setSales,expenses,setExpenses,accounts,setAccounts,closes,businessId,reloadInventory,monthCloses,addMonthClose,initialBase,setInitialBase,quotes,setQuotes,debts,setDebts,debtPayments,reloadDebtPayments,accountHistory,reloadAccountHistory,month,rate,setRate,logCtx,inventoryCategories,addInventoryCategory,removeInventoryCategory,paymentMethods,addPaymentMethod,removePaymentMethod,inventorySizes,addInventorySize,removeInventorySize,inventoryBaselineMonth,setInventoryBaselineMonth};
 
  if(!supabaseConfigured)return <Auth businessId={null} onLogin={()=>{}}/>;
  if(bootError)return <div className="loadingScreen">{bootError}</div>;
@@ -179,7 +194,7 @@ function Accounts({accounts,setAccounts,rate,businessId,logCtx,accountHistory,re
   </Panel>
  })()}
  <Panel title="Agregar cuenta o caja"><div className="form inline"><Input l="Nombre (ej. BAC Dólares)" v={f.name} s={v=>setF({...f,name:v})}/><Select l="Moneda" v={f.currency} s={v=>setF({...f,currency:v})} opts={['C$','US$']}/><button className="btn primary" onClick={add}>Agregar cuenta</button></div><div className="note">Tipo de cambio actual del sistema: C${rate.toFixed(2)} = US$1.00. El resumen convierte automáticamente todas las cuentas. Cada vez que actualizas el saldo de una cuenta, el saldo anterior queda guardado en su "Historial".</div></Panel></>}
-function Inventory({closes,businessId,reloadInventory,monthCloses,month,rate,logCtx,inventoryCategories,addInventoryCategory,inventorySizes,addInventorySize,inventoryBaselineMonth,setInventoryBaselineMonth}:any){
+function Inventory({closes,businessId,reloadInventory,monthCloses,month,rate,logCtx,inventoryCategories,addInventoryCategory,removeInventoryCategory,inventorySizes,addInventorySize,removeInventorySize,inventoryBaselineMonth,setInventoryBaselineMonth}:any){
  const existing=[...closes].reverse().find((x:InventoryClose)=>x.month===month);
  const items=existing?.items||[];
  const categories:string[]=(inventoryCategories&&inventoryCategories.length)?inventoryCategories:['Camisas','Hilos','Tintas','Vinil','Sublimación','Empaque','Otros'];
@@ -200,6 +215,18 @@ function Inventory({closes,businessId,reloadInventory,monthCloses,month,rate,log
   if(!name||!name.trim())return;
   try{await addInventorySize(name.trim());setF(prev=>({...prev,talla:name.trim()}))}
   catch(err){console.error(err);alert('No se pudo guardar la nueva talla en la nube. Inténtalo de nuevo.')}
+ };
+ const handleRemoveCategory=async()=>{
+  if(!f.category)return;
+  if(!confirm(`¿Borrar la categoría "${f.category}" de tu lista? Los productos que ya la tienen la conservan igual — solo deja de aparecer para productos nuevos.`))return;
+  try{await removeInventoryCategory(f.category);setF(prev=>({...prev,category:categories.filter((c:string)=>c!==prev.category)[0]||''}))}
+  catch(err){console.error(err);alert('No se pudo borrar la categoría en la nube. Inténtalo de nuevo.')}
+ };
+ const handleRemoveSize=async()=>{
+  if(!f.talla)return;
+  if(!confirm(`¿Borrar la talla "${f.talla}" de tu lista? Los productos que ya la tienen la conservan igual — solo deja de aparecer para productos nuevos.`))return;
+  try{await removeInventorySize(f.talla);setF(prev=>({...prev,talla:''}))}
+  catch(err){console.error(err);alert('No se pudo borrar la talla en la nube. Inténtalo de nuevo.')}
  };
  const cancelEdit=()=>{setEditingId(null);setF(prev=>({...prev,name:'',talla:'',color:'',qty:'',unitValue:''}))};
  const editItem=(item:InventoryItem)=>{
@@ -318,8 +345,8 @@ function Inventory({closes,businessId,reloadInventory,monthCloses,month,rate,log
 
  return <><Panel title={`Inventario · ${month}`}>{closed?<div className="closedBanner">✓ Este mes está CERRADO.</div>:<>{editingId&&<p className="editorNotice">Editando "{f.name || 'producto'}". Los cambios se guardan al presionar "Guardar cambios".</p>}<div className="form grid">
  <Input l="Detalle" v={f.name} s={v=>setF({...f,name:v})}/>
- <label><span>Categoría <button type="button" className="addChip" onClick={handleAddCategory} title="Agregar categoría">+</button></span><select value={f.category} onChange={e=>setF({...f,category:e.target.value})}>{categories.map((c:string)=><option key={c}>{c}</option>)}</select></label>
- <label><span>Talla <button type="button" className="addChip" onClick={handleAddSize} title="Agregar talla">+</button></span><select value={f.talla} onChange={e=>setF({...f,talla:e.target.value})}>{sizeOptions.map((s:string)=><option key={s||'—'} value={s}>{s||'(Sin talla)'}</option>)}</select></label>
+ <label><span>Categoría <button type="button" className="addChip" onClick={handleAddCategory} title="Agregar categoría">+</button>{!!f.category&&<button type="button" className="removeChip" onClick={handleRemoveCategory} title="Borrar esta categoría de la lista">×</button>}</span><select value={f.category} onChange={e=>setF({...f,category:e.target.value})}>{categories.map((c:string)=><option key={c}>{c}</option>)}</select></label>
+ <label><span>Talla <button type="button" className="addChip" onClick={handleAddSize} title="Agregar talla">+</button>{!!f.talla&&<button type="button" className="removeChip" onClick={handleRemoveSize} title="Borrar esta talla de la lista">×</button>}</span><select value={f.talla} onChange={e=>setF({...f,talla:e.target.value})}>{sizeOptions.map((s:string)=><option key={s||'—'} value={s}>{s||'(Sin talla)'}</option>)}</select></label>
  <Input l="Color" v={f.color} s={v=>setF({...f,color:v})}/>
  <Input l="Cantidad" v={f.qty} s={v=>setF({...f,qty:v})} type="number"/>
  <MoneyInput l="Precio" v={f.unitValue} s={v=>setF({...f,unitValue:v})} c={f.currency as 'C$'|'US$'} sc={c=>setF({...f,currency:c})}/>

@@ -326,6 +326,9 @@ main>.panel,main>.kpis,main>.cards,main>.dashboardGrid,main>.statementGrid,main>
 /* Botón "+" para agregar categorías / métodos de pago nuevos desde la app */
 .addChip{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#2863cd;color:#fff;font-weight:900;font-size:13px;line-height:1;border:none;cursor:pointer;padding:0;margin-left:6px;vertical-align:middle}
 .addChip:hover{background:#1c50b0}
+/* Botón "×" rojo para borrar de la lista lo que ya está seleccionado (categoría, talla, método de pago) */
+.removeChip{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#c0293c;color:#fff;font-weight:900;font-size:13px;line-height:1;border:none;cursor:pointer;padding:0;margin-left:4px;vertical-align:middle}
+.removeChip:hover{background:#9e1f2e}
 
 /* Ventas: la fila se sombra en rojo cuando la venta está totalmente pendiente (nada pagado). El amarillo de .salePending queda solo para pago parcial. */
 tr.saleUnpaid td,tbody tr.saleUnpaid td{background:#fff0f0;border-bottom-color:#f3c9cc}
