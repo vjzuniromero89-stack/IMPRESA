@@ -242,3 +242,34 @@ No requiere ninguna migración nueva.
 Con este cambio, un producto que baja a 0 sí queda registrado ese mes, y "Detalle de Inventario" lo va a marcar correctamente en rojo como faltante si antes tenía existencia.
 
 No se perdió ningún dato existente.
+
+
+## v3.33.2 — Dashboard: "Bancos y caja" ahora dice "Bancos y efectivo"
+No requiere ninguna migración nueva.
+
+- En el Dashboard, la tarjeta que muestra el saldo consolidado de tus cuentas ahora dice **"Bancos y efectivo"** en vez de "Bancos y caja" (mismo dato, solo cambió el nombre).
+
+No se perdió ningún dato existente.
+
+
+## v3.33.3 — Corrección: 13 productos se perdían al importar el Excel (columna "Detalle" vacía en algunas filas)
+No requiere ninguna migración nueva.
+
+**Lo que encontré con tu archivo**: tu hoja "KLASICO ALGODON" tiene 185 productos reales, pero la app solo leía 172. Revisé tu Excel y encontré la causa exacta: en 13 filas (por ejemplo todo el grupo de Landyard, Photo Frame, Lamina PVC, Portacarnet, Sublimación C), la columna **Detalle** quedó vacía y el nombre completo del producto terminó escrito en la columna **Color** (por ejemplo Color: "LANDYARD ROJO"). Como la app exigía que Detalle no viniera vacío, esas 13 filas se descartaban en silencio, aunque sí tenían cantidad y precio válidos.
+
+**La corrección**: ahora, si Detalle viene vacío pero Color trae texto, la app usa ese texto de Color como el nombre del producto (y deja Color vacío para esa fila), en vez de descartar la fila. Con tu archivo esto recupera exactamente los 13 productos que faltaban (172 → 185).
+
+**Sobre las otras pestañas de tu archivo**: tu Excel también trae las hojas "TAZAS" (6 productos) y "TERMOS" (1 producto), además de una "Hoja1" que es una copia casi idéntica de "KLASICO ALGODON" (parece un respaldo/duplicado, con una columna "CANTIDAD2" en vez de "CANTIDAD"). Por ahora la app sigue leyendo solo la hoja con más productos válidos (para no arriesgarse a importar "Hoja1" como si fueran productos nuevos y duplicar todo tu inventario). Si quieres que también traiga automáticamente los productos de TAZAS y TERMOS en la misma importación, dime y lo agrego — mientras tanto, esas dos las puedes importar aparte subiendo cada una como su propio archivo, o dime cómo prefieres que la app decida cuáles hojas sí y cuáles no debe leer.
+
+No se perdió ningún dato existente.
+
+
+## v3.34.0 — Encabezados más grandes y en mayúscula en toda la app
+No requiere ninguna migración nueva.
+
+- **Nombres de las tarjetas del Dashboard** (Bancos y efectivo, Inventario, Ventas registradas, Gastos del mes, y las mismas de Contabilidad) se ven más grandes.
+- **"Valor del Negocio Actual"** y, en general, **el título de cada sección de la app** (el encabezado con fondo celeste arriba de cada bloque, por ejemplo "Registro de ventas", "Inventario · 2026-09", "Agregar cuenta o caja", "Historial de pagos", etc.) ahora se muestra en **mayúscula y con letra más grande**, en cualquier pestaña.
+- También los títulos grandes de "Estado general del negocio" (Dashboard) y "Contabilidad del negocio" (Contabilidad) ahora van en mayúscula.
+- Revisé toda la página buscando encabezados que quedaran en minúscula por error de estilo: los nombres de columnas de las tablas, los rótulos como "VALOR REAL"/"CAPITAL Y RESULTADO" y las etiquetas pequeñas (RESUMEN EJECUTIVO, CENTRO FINANCIERO, etc.) ya estaban en mayúscula desde antes, así que no se tocaron. Los campos de formulario (Fecha, Cliente, Categoría, etc.) se dejaron en minúscula/normal a propósito — esos son etiquetas de captura, no encabezados de sección.
+
+No se perdió ningún dato existente ni cambió ninguna función, solo la apariencia.
