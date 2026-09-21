@@ -4,6 +4,7 @@ import {supabaseConfigured} from '../lib/supabaseClient';
 import Auth from '../components/Auth';
 import ModuleIcon from '../components/ModuleIcon';
 import Users from '../components/Users';
+import ManagedSelect from '../components/ManagedSelect';
 import {Sales,Expenses,SalesMethods} from '../components/SalesWorkspace';
 import type {Payment,Sale,Expense,Account,InventoryItem,InventoryClose,DebtPayment,MonthClose,Quote,InitialBase,AppUser,Debt,DebtPaymentRecord,AccountBalanceEntry} from '../lib/db';
 import {uid,ensureBusiness,fetchBusinessSettings,updateRateRemote,confirmInitialBaseRemote,useSalesCloud,useExpensesCloud,useAccountsCloud,useQuotesCloud,useMonthClosesCloud,useDebtsCloud,loadInventory,addInventoryItemRemote,addInventoryItemsBulkRemote,updateInventoryItemRemote,deleteInventoryItemRemote,deleteInventoryMonthRemote,logActivity,loadDebtPayments,addDebtPaymentRemote,removeDebtPaymentRemote,loadAccountBalanceHistory,addAccountBalanceHistoryRemote,removeAccountBalanceHistoryRemote,addInventoryCategoryRemote,addPaymentMethodRemote,addInventorySizeRemote,setInventoryBaselineMonthRemote,removeInventoryCategoryRemote,removePaymentMethodRemote,removeInventorySizeRemote} from '../lib/db';
@@ -202,7 +203,7 @@ function Inventory({closes,businessId,reloadInventory,monthCloses,month,rate,log
  const [f,setF]=useState({name:'',category:categories[0]||'Camisas',talla:'',color:'',qty:'',unitValue:'',currency:'C$'});
  const [editingId,setEditingId]=useState<string|null>(null);
  // La talla se elige de la lista guardada (igual que la categoría), para que nadie la escriba mal por error.
- const sizeOptions=Array.from(new Set(['',...sizes,...(f.talla?[f.talla]:[])]));
+ const sizeOptions=Array.from(new Set([...sizes,...(f.talla?[f.talla]:[])]));
  const total=items.reduce((a:number,x:InventoryItem)=>a+x.qty*x.unitValue,0),entered=+f.unitValue||0,unitNio=toNio(entered,f.currency as 'C$'|'US$',rate),closed=monthCloses.some((x:MonthClose)=>x.month===month);
  const handleAddCategory=async()=>{
   const name=prompt('Nombre de la nueva categoría de inventario:');
@@ -216,16 +217,12 @@ function Inventory({closes,businessId,reloadInventory,monthCloses,month,rate,log
   try{await addInventorySize(name.trim());setF(prev=>({...prev,talla:name.trim()}))}
   catch(err){console.error(err);alert('No se pudo guardar la nueva talla en la nube. Inténtalo de nuevo.')}
  };
- const handleRemoveCategory=async()=>{
-  if(!f.category)return;
-  if(!confirm(`¿Borrar la categoría "${f.category}" de tu lista? Los productos que ya la tienen la conservan igual — solo deja de aparecer para productos nuevos.`))return;
-  try{await removeInventoryCategory(f.category);setF(prev=>({...prev,category:categories.filter((c:string)=>c!==prev.category)[0]||''}))}
+ const handleRemoveCategoryItem=async(name:string)=>{
+  try{await removeInventoryCategory(name);setF(prev=>prev.category===name?{...prev,category:categories.filter((c:string)=>c!==name)[0]||''}:prev)}
   catch(err){console.error(err);alert('No se pudo borrar la categoría en la nube. Inténtalo de nuevo.')}
  };
- const handleRemoveSize=async()=>{
-  if(!f.talla)return;
-  if(!confirm(`¿Borrar la talla "${f.talla}" de tu lista? Los productos que ya la tienen la conservan igual — solo deja de aparecer para productos nuevos.`))return;
-  try{await removeInventorySize(f.talla);setF(prev=>({...prev,talla:''}))}
+ const handleRemoveSizeItem=async(name:string)=>{
+  try{await removeInventorySize(name);setF(prev=>prev.talla===name?{...prev,talla:''}:prev)}
   catch(err){console.error(err);alert('No se pudo borrar la talla en la nube. Inténtalo de nuevo.')}
  };
  const cancelEdit=()=>{setEditingId(null);setF(prev=>({...prev,name:'',talla:'',color:'',qty:'',unitValue:''}))};
@@ -345,8 +342,8 @@ function Inventory({closes,businessId,reloadInventory,monthCloses,month,rate,log
 
  return <><Panel title={`Inventario · ${month}`}>{closed?<div className="closedBanner">✓ Este mes está CERRADO.</div>:<>{editingId&&<p className="editorNotice">Editando "{f.name || 'producto'}". Los cambios se guardan al presionar "Guardar cambios".</p>}<div className="form grid">
  <Input l="Detalle" v={f.name} s={v=>setF({...f,name:v})}/>
- <label><span>Categoría <button type="button" className="addChip" onClick={handleAddCategory} title="Agregar categoría">+</button>{!!f.category&&<button type="button" className="removeChip" onClick={handleRemoveCategory} title="Borrar esta categoría de la lista">×</button>}</span><select value={f.category} onChange={e=>setF({...f,category:e.target.value})}>{categories.map((c:string)=><option key={c}>{c}</option>)}</select></label>
- <label><span>Talla <button type="button" className="addChip" onClick={handleAddSize} title="Agregar talla">+</button>{!!f.talla&&<button type="button" className="removeChip" onClick={handleRemoveSize} title="Borrar esta talla de la lista">×</button>}</span><select value={f.talla} onChange={e=>setF({...f,talla:e.target.value})}>{sizeOptions.map((s:string)=><option key={s||'—'} value={s}>{s||'(Sin talla)'}</option>)}</select></label>
+ <label><span>Categoría <button type="button" className="addChip" onClick={handleAddCategory} title="Agregar categoría">+</button></span><ManagedSelect value={f.category} onChange={v=>setF({...f,category:v})} options={categories} onRemove={handleRemoveCategoryItem} confirmMessage={(c:string)=>`¿Borrar la categoría "${c}" de tu lista? Los productos que ya la tienen la conservan igual — solo deja de aparecer para productos nuevos.`}/></label>
+ <label><span>Talla <button type="button" className="addChip" onClick={handleAddSize} title="Agregar talla">+</button></span><ManagedSelect value={f.talla} onChange={v=>setF({...f,talla:v})} options={sizeOptions} emptyLabel="(Sin talla)" onRemove={handleRemoveSizeItem} confirmMessage={(s:string)=>`¿Borrar la talla "${s}" de tu lista? Los productos que ya la tienen la conservan igual — solo deja de aparecer para productos nuevos.`}/></label>
  <Input l="Color" v={f.color} s={v=>setF({...f,color:v})}/>
  <Input l="Cantidad" v={f.qty} s={v=>setF({...f,qty:v})} type="number"/>
  <MoneyInput l="Precio" v={f.unitValue} s={v=>setF({...f,unitValue:v})} c={f.currency as 'C$'|'US$'} sc={c=>setF({...f,currency:c})}/>

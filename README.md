@@ -199,3 +199,13 @@ No requiere ninguna migración nueva (usa las mismas columnas de las versiones a
 - Así puedes borrar la lista de tallas que trae la app por defecto y dejar solo las que realmente usas.
 
 No se perdió ningún dato existente.
+
+
+## v3.32.0 — Borrar desde adentro de la lista (la flechita abre la lista con su × en cada opción)
+No requiere ninguna migración nueva.
+
+- Se rediseñó cómo funcionan Categoría y Talla (Inventario) y Método de pago (Ventas): ya no es un select común. Ahora, al darle clic a la flechita de abajo, se abre la lista completa de lo que tienes guardado, y **cada opción de la lista trae su propia × roja** para borrarla ahí mismo — con una confirmación antes de borrar. Ya no hace falta elegir un valor primero para poder borrarlo.
+- Se quitó la × que había quedado por fuera del campo (al lado del +); ahora borrar se hace desde adentro de la lista, como pediste.
+- El botón **+** para agregar uno nuevo se queda igual que antes, al lado de la etiqueta del campo.
+
+No se perdió ningún dato existente.

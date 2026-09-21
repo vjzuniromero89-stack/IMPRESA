@@ -3,6 +3,7 @@ import {useRef,useState} from 'react';
 import type {ReactNode,FormEvent} from 'react';
 import type {Sale,Expense,Currency,PaymentMethod} from '../lib/db';
 import {uid} from '../lib/db';
+import ManagedSelect from './ManagedSelect';
 
 type Setter<T>=(items:T[])=>void|Promise<void>;
 type SalesProps={sales:Sale[];setSales:Setter<Sale>;month:string;rate:number;paymentMethods?:string[];addPaymentMethod?:(name:string)=>Promise<void>;removePaymentMethod?:(name:string)=>Promise<void>};
@@ -15,9 +16,9 @@ const round=(n:number)=>Math.round((n+Number.EPSILON)*100)/100;
 const convert=(value:string,currency:Currency,rate:number)=>round(Number(value)*(currency==='US$'?rate:1));
 const DEFAULT_METHODS:PaymentMethod[]=['Transferencia','Efectivo'];
 function Field({label,children}:{label:ReactNode;children:ReactNode}){return <label><span>{label}</span>{children}</label>}
-function Method({value,onChange,methods,onAdd,onRemove,allowEmpty=false}:{value:string;onChange:(v:PaymentMethod)=>void;methods:string[];onAdd?:()=>void;onRemove?:()=>void;allowEmpty?:boolean}){
- const label=(onAdd||onRemove)?<>Método de pago {onAdd&&<button type="button" className="addChip" onClick={onAdd} title="Agregar método de pago">+</button>}{onRemove&&value&&<button type="button" className="removeChip" onClick={onRemove} title="Borrar este método de pago de la lista">×</button>}</>:'Método de pago';
- return <Field label={label}><select required value={value} onChange={e=>onChange(e.target.value as PaymentMethod)}>{allowEmpty&&<option value="">Selecciona un método</option>}{methods.map(m=><option key={m}>{m}</option>)}</select></Field>
+function Method({value,onChange,methods,onAdd,onRemove,allowEmpty=false}:{value:string;onChange:(v:PaymentMethod)=>void;methods:string[];onAdd?:()=>void;onRemove?:(name:string)=>void|Promise<void>;allowEmpty?:boolean}){
+ const label=onAdd?<>Método de pago <button type="button" className="addChip" onClick={onAdd} title="Agregar método de pago">+</button></>:'Método de pago';
+ return <Field label={label}><ManagedSelect value={value} onChange={v=>onChange(v as PaymentMethod)} options={methods} emptyLabel={allowEmpty?'Selecciona un método':undefined} onRemove={onRemove} confirmMessage={(m:string)=>`¿Borrar "${m}" de tu lista de métodos de pago? Las ventas que ya tienen este método conservan el dato; solo deja de aparecer para ventas nuevas.`}/></Field>
 }
 function CurrencyField({value,onChange}:{value:Currency;onChange:(v:Currency)=>void}){return <Field label="Moneda"><select value={value} onChange={e=>onChange(e.target.value as Currency)}><option>C$</option><option>US$</option></select></Field>}
 function GridTable({heads,children}:{heads:string[];children:ReactNode}){return <div className="tablewrap"><table><thead><tr>{heads.map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{children}</tbody></table></div>}
@@ -40,14 +41,14 @@ export function Sales({sales,setSales,month,rate,paymentMethods,addPaymentMethod
  };
  const handleAddMethod=async()=>{const name=await promptNewMethod();if(name)setF(prev=>({...prev,paymentMethod:name}))};
  const handleAddMethodForPayment=async()=>{const name=await promptNewMethod();if(name)setPaymentMethod(name)};
- const removeMethodByName=async(name:string):Promise<boolean>=>{
-  if(!confirm(`¿Borrar "${name}" de tu lista de métodos de pago? Las ventas que ya tienen este método conservan el dato; solo deja de aparecer para ventas nuevas.`))return false;
-  if(!removePaymentMethod){alert('No se pudo borrar el método de pago.');return false}
-  try{await removePaymentMethod(name);return true}
-  catch(err){console.error(err);alert('No se pudo borrar el método de pago en la nube. Inténtalo de nuevo.');return false}
+ const handleRemoveMethodItem=async(name:string)=>{
+  if(!removePaymentMethod){alert('No se pudo borrar el método de pago.');return}
+  try{
+   await removePaymentMethod(name);
+   setF(prev=>prev.paymentMethod===name?{...prev,paymentMethod:''}:prev);
+   setPaymentMethod(prev=>prev===name?(methods.find(m=>m!==name)||'Efectivo'):prev);
+  }catch(err){console.error(err);alert('No se pudo borrar el método de pago en la nube. Inténtalo de nuevo.')}
  };
- const handleRemoveMethod=async()=>{if(f.paymentMethod&&await removeMethodByName(f.paymentMethod))setF(prev=>({...prev,paymentMethod:''}))};
- const handleRemoveMethodForPayment=async()=>{if(paymentMethod&&await removeMethodByName(paymentMethod))setPaymentMethod(methods.find(m=>m!==paymentMethod)||'Efectivo')};
  const visible=sales.filter(s=>s.date.startsWith(month)).slice().sort((a,b)=>b.date.localeCompare(a.date));
  const originalEntered=editing?.enteredAmount??(editing?editing.amount/(editing.currency==='US$'?rate:1):0);
  // Preserve the stored conversion when editing only descriptive fields.
@@ -76,12 +77,12 @@ export function Sales({sales,setSales,month,rate,paymentMethods,addPaymentMethod
  <Field label="Cliente"><input required value={f.client} onChange={e=>setF({...f,client:e.target.value})}/></Field>
  <Field label="Trabajo / descripción"><input value={f.description} onChange={e=>setF({...f,description:e.target.value})}/></Field>
  <Field label="Total"><input required type="number" min="0.01" step="0.01" value={f.amount} onChange={e=>setF({...f,amount:e.target.value})}/></Field>
- <CurrencyField value={f.currency} onChange={currency=>setF({...f,currency})}/><Method value={f.paymentMethod} methods={methods} allowEmpty onChange={paymentMethod=>setF({...f,paymentMethod})} onAdd={handleAddMethod} onRemove={handleRemoveMethod}/>
+ <CurrencyField value={f.currency} onChange={currency=>setF({...f,currency})}/><Method value={f.paymentMethod} methods={methods} allowEmpty onChange={paymentMethod=>setF({...f,paymentMethod})} onAdd={handleAddMethod} onRemove={handleRemoveMethodItem}/>
  {!editing&&<Field label="Pago inicial"><input type="number" min="0" step="0.01" value={f.initialPayment} onChange={e=>setF({...f,initialPayment:e.target.value})}/></Field>}
  <div className="conversion"><span>Total en ambas monedas</span><b>{dual(Number.isFinite(total)?total:0,rate)}</b></div>
  <div className="actions"><button className="btn primary" type="submit">{busy?'Guardando…':editing?'Guardar cambios':'Registrar venta'}</button>{editing&&<button type="button" className="btn" onClick={reset}>Cancelar edición</button>}</div>
  </fieldset></form></div>
- <div className="panel" ref={paymentEditor}>{paymentSale&&<><h2>Registrar abono · {sales.find(s=>s.id===paymentSale)?.client}</h2><form onSubmit={addPayment}><fieldset className="form grid" disabled={busy}><Field label="Fecha del abono"><input required type="date" value={paymentDate} onChange={e=>setPaymentDate(e.target.value)}/></Field><Field label="Abono en C$"><input required type="number" min="0.01" step="0.01" value={paymentAmount} onChange={e=>setPaymentAmount(e.target.value)}/></Field><Method value={paymentMethod} methods={methods} onChange={setPaymentMethod} onAdd={handleAddMethodForPayment} onRemove={handleRemoveMethodForPayment}/><button className="btn primary">Guardar abono</button><button type="button" className="btn" onClick={()=>setPaymentSale(null)}>Cancelar</button></fieldset></form></>}
+ <div className="panel" ref={paymentEditor}>{paymentSale&&<><h2>Registrar abono · {sales.find(s=>s.id===paymentSale)?.client}</h2><form onSubmit={addPayment}><fieldset className="form grid" disabled={busy}><Field label="Fecha del abono"><input required type="date" value={paymentDate} onChange={e=>setPaymentDate(e.target.value)}/></Field><Field label="Abono en C$"><input required type="number" min="0.01" step="0.01" value={paymentAmount} onChange={e=>setPaymentAmount(e.target.value)}/></Field><Method value={paymentMethod} methods={methods} onChange={setPaymentMethod} onAdd={handleAddMethodForPayment} onRemove={handleRemoveMethodItem}/><button className="btn primary">Guardar abono</button><button type="button" className="btn" onClick={()=>setPaymentSale(null)}>Cancelar</button></fieldset></form></>}
  <h2>Ventas · {month}</h2><GridTable heads={['Fecha','Cliente','Trabajo','Método','Total','Pagado','Saldo','Estado','Acciones']}>{visible.map(s=><tr key={s.id} className={s.status==='Pendiente'?'saleUnpaid':s.status==='Pago parcial'?'salePending':''}><td>{s.date}</td><td>{s.client}</td><td>{s.description||'—'}</td><td><MethodBadge method={s.paymentMethod}/></td><td>{money(s.amount)}</td><td>{money(paid(s))}</td><td>{money(Math.max(0,s.amount-paid(s)))}</td><td><span className={'statusBadge '+(s.status==='Pagada'?'paid':s.status==='Pendiente'?'pending':'partial')}>{s.status}</span></td><td><div className="actions"><button className="small" disabled={busy} onClick={()=>edit(s)}>Editar</button><button className="small" disabled={busy||paid(s)>=s.amount} onClick={()=>{setPaymentSale(s.id);setPaymentAmount(String(round(s.amount-paid(s))));setPaymentMethod(s.paymentMethod||'Efectivo');setPaymentDate(today());paymentEditor.current?.scrollIntoView({behavior:'smooth'})}}>+ Abono</button><button className="small" onClick={()=>setHistoryId(historyId===s.id?null:s.id)}>Historial</button><button className="dangerSmall" disabled={busy} onClick={()=>remove(s)}>Borrar</button></div></td></tr>)}</GridTable>{!visible.length&&<p className="empty">No hay ventas en este mes.</p>}</div>
  {history&&<div className="panel"><h2>Historial de pagos · {history.client}</h2><GridTable heads={['Fecha','Método','Importe','Nota']}>{history.payments?.map(p=><tr key={p.id}><td>{p.date}</td><td>{p.method||'Sin clasificar'}</td><td>{money(p.amount)}</td><td>{p.note||'Pago'}</td></tr>)}</GridTable>{!history.payments?.length&&<p className="empty">Sin abonos detallados registrados.</p>}<button className="small" onClick={()=>setHistoryId(null)}>Cerrar historial</button></div>}
  </>;
