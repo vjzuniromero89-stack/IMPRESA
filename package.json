@@ -1,6 +1,6 @@
 {
   "name": "impresa",
-  "version": "3.25.0",
+  "version": "3.26.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -11,7 +11,8 @@
     "@supabase/supabase-js": "^2.45.4",
     "next": "15.5.25",
     "react": "19.1.0",
-    "react-dom": "19.1.0"
+    "react-dom": "19.1.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/node": "^22",

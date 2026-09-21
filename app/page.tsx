@@ -1,16 +1,16 @@
 'use client';
-import {useEffect,useState} from 'react';
+import {useEffect,useRef,useState} from 'react';
 import {supabaseConfigured} from '../lib/supabaseClient';
 import Auth from '../components/Auth';
 import ModuleIcon from '../components/ModuleIcon';
 import Users from '../components/Users';
 import {Sales,Expenses,SalesMethods} from '../components/SalesWorkspace';
 import type {Payment,Sale,Expense,Account,InventoryItem,InventoryClose,DebtPayment,MonthClose,Quote,InitialBase,AppUser,Debt,DebtPaymentRecord,AccountBalanceEntry} from '../lib/db';
-import {uid,ensureBusiness,fetchBusinessSettings,updateRateRemote,confirmInitialBaseRemote,useSalesCloud,useExpensesCloud,useAccountsCloud,useQuotesCloud,useMonthClosesCloud,useDebtsCloud,loadInventory,addInventoryItemRemote,deleteInventoryItemRemote,deleteInventoryMonthRemote,logActivity,loadDebtPayments,addDebtPaymentRemote,removeDebtPaymentRemote,loadAccountBalanceHistory,addAccountBalanceHistoryRemote,removeAccountBalanceHistoryRemote} from '../lib/db';
+import {uid,ensureBusiness,fetchBusinessSettings,updateRateRemote,confirmInitialBaseRemote,useSalesCloud,useExpensesCloud,useAccountsCloud,useQuotesCloud,useMonthClosesCloud,useDebtsCloud,loadInventory,addInventoryItemRemote,addInventoryItemsBulkRemote,deleteInventoryItemRemote,deleteInventoryMonthRemote,logActivity,loadDebtPayments,addDebtPaymentRemote,removeDebtPaymentRemote,loadAccountBalanceHistory,addAccountBalanceHistoryRemote,removeAccountBalanceHistoryRemote,addInventoryCategoryRemote,addPaymentMethodRemote} from '../lib/db';
 
 const CURRENT_USER_KEY='impresa_current_user';
 
-const tabs=['Dashboard','Ventas','Ventas Transferencia Efectivo','Gastos','Inventario','Banco y Efectivo','Contabilidad','Cierre de mes','Deudas','Cotizaciones','Usuarios','Reportes','Configuración'];
+const tabs=['Dashboard','Ventas','Ventas Transferencia Efectivo','Gastos','Inventario','Banco y Efectivo','Contabilidad','Deudas','Cierre de mes','Cotizaciones','Usuarios','Reportes','Configuración'];
 const today=()=>new Date().toISOString().slice(0,10);
 const monthNow=()=>new Date().toISOString().slice(0,7);
 const money=(n:number,c:'C$'|'US$'='C$')=>`${c}${new Intl.NumberFormat('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(n)||0)}`;
@@ -25,6 +25,8 @@ export default function Home(){
  const [tab,setTab]=useState('Dashboard'),[month,setMonth]=useState(monthNow());
  const [rate,setRateLocal]=useState(37);
  const [initialBase,setInitialBaseLocal]=useState<InitialBase>({confirmed:false,baseUSD:4100,baseC:0});
+ const [inventoryCategories,setInventoryCategories]=useState<string[]>(['Camisas','Hilos','Tintas','Vinil','Sublimación','Empaque','Otros']);
+ const [paymentMethods,setPaymentMethods]=useState<string[]>(['Transferencia','Efectivo']);
 
  // Inicio de sesión con usuario y contraseña (pestaña Usuarios). Una vez
  // que alguien entra, este navegador lo recuerda (no hay que volver a
@@ -46,12 +48,22 @@ export default function Home(){
  useEffect(()=>{
   if(!businessId)return;
   let cancelled=false;
-  fetchBusinessSettings(businessId).then(s=>{if(!cancelled){setRateLocal(s.rate);setInitialBaseLocal(s.initialBase);setSettingsReady(true)}}).catch(err=>{console.error('IMPRESA: no se pudo cargar la configuración',err);if(!cancelled)setSettingsReady(true)});
+  fetchBusinessSettings(businessId).then(s=>{if(!cancelled){setRateLocal(s.rate);setInitialBaseLocal(s.initialBase);setInventoryCategories(s.inventoryCategories);setPaymentMethods(s.paymentMethods);setSettingsReady(true)}}).catch(err=>{console.error('IMPRESA: no se pudo cargar la configuración',err);if(!cancelled)setSettingsReady(true)});
   return ()=>{cancelled=true}
  },[businessId]);
 
  const setRate=(v:number)=>{setRateLocal(v);if(businessId)updateRateRemote(businessId,v).catch(err=>{console.error(err);alert('No se pudo guardar el tipo de cambio en la nube.')})};
  const setInitialBase=(v:InitialBase)=>{setInitialBaseLocal(v);if(businessId&&v.confirmed)confirmInitialBaseRemote(businessId,v.baseC).catch(err=>{console.error(err);alert('No se pudo confirmar la situación inicial en la nube.')})};
+ const addInventoryCategory=async(name:string)=>{
+  if(!businessId)throw new Error('Todavía se está preparando tu negocio, intenta de nuevo en un momento.');
+  const next=await addInventoryCategoryRemote(businessId,name);
+  setInventoryCategories(next);
+ };
+ const addPaymentMethod=async(name:string)=>{
+  if(!businessId)throw new Error('Todavía se está preparando tu negocio, intenta de nuevo en un momento.');
+  const next=await addPaymentMethodRemote(businessId,name);
+  setPaymentMethods(next);
+ };
 
  const logCtx={userId:currentUser?.id,username:currentUser?.username||''};
  const [sales,setSales]=useSalesCloud(businessId,rate,logCtx);
@@ -87,7 +99,7 @@ export default function Home(){
  },[businessId]);
  const reloadAccountHistory=()=>{if(businessId)loadAccountBalanceHistory(businessId).then(setAccountHistoryLocal).catch(err=>console.error(err))};
 
- const props={sales,setSales,expenses,setExpenses,accounts,setAccounts,closes,businessId,reloadInventory,monthCloses,addMonthClose,initialBase,setInitialBase,quotes,setQuotes,debts,setDebts,debtPayments,reloadDebtPayments,accountHistory,reloadAccountHistory,month,rate,setRate,logCtx};
+ const props={sales,setSales,expenses,setExpenses,accounts,setAccounts,closes,businessId,reloadInventory,monthCloses,addMonthClose,initialBase,setInitialBase,quotes,setQuotes,debts,setDebts,debtPayments,reloadDebtPayments,accountHistory,reloadAccountHistory,month,rate,setRate,logCtx,inventoryCategories,addInventoryCategory,paymentMethods,addPaymentMethod};
 
  if(!supabaseConfigured)return <Auth businessId={null} onLogin={()=>{}}/>;
  if(bootError)return <div className="loadingScreen">{bootError}</div>;
@@ -146,15 +158,104 @@ function Accounts({accounts,setAccounts,rate,businessId,logCtx,accountHistory,re
   </Panel>
  })()}
  <Panel title="Agregar cuenta o caja"><div className="form inline"><Input l="Nombre (ej. BAC Dólares)" v={f.name} s={v=>setF({...f,name:v})}/><Select l="Moneda" v={f.currency} s={v=>setF({...f,currency:v})} opts={['C$','US$']}/><button className="btn primary" onClick={add}>Agregar cuenta</button></div><div className="note">Tipo de cambio actual del sistema: C${rate.toFixed(2)} = US$1.00. El resumen convierte automáticamente todas las cuentas. Cada vez que actualizas el saldo de una cuenta, el saldo anterior queda guardado en su "Historial".</div></Panel></>}
-function Inventory({closes,businessId,reloadInventory,monthCloses,month,rate,logCtx}:any){
+function Inventory({closes,businessId,reloadInventory,monthCloses,month,rate,logCtx,inventoryCategories,addInventoryCategory}:any){
  const existing=[...closes].reverse().find((x:InventoryClose)=>x.month===month);
  const items=existing?.items||[];
- const [f,setF]=useState({name:'',category:'Camisas',qty:'',unitValue:'',currency:'C$'});
+ const categories:string[]=(inventoryCategories&&inventoryCategories.length)?inventoryCategories:['Camisas','Hilos','Tintas','Vinil','Sublimación','Empaque','Otros'];
+ const [f,setF]=useState({name:'',category:categories[0]||'Camisas',talla:'',color:'',qty:'',unitValue:'',currency:'C$'});
  const total=items.reduce((a:number,x:InventoryItem)=>a+x.qty*x.unitValue,0),entered=+f.unitValue||0,unitNio=toNio(entered,f.currency as 'C$'|'US$',rate),closed=monthCloses.some((x:MonthClose)=>x.month===month);
- const add=async()=>{if(closed)return alert('Este mes ya está cerrado.');if(!f.name||!+f.qty)return alert('Completa producto/material y cantidad.');const item:InventoryItem={id:uid(),name:f.name,category:f.category,qty:+f.qty,unitValue:unitNio,currency:f.currency as 'C$'|'US$',enteredUnitValue:entered};try{await addInventoryItemRemote(businessId,month,item);reloadInventory();if(logCtx)logActivity(businessId,logCtx.userId,logCtx.username,'created','monthly_inventory',`Agregó "${item.name}" al inventario de ${month}`);setF({...f,name:'',qty:'',unitValue:''})}catch(err){console.error(err);alert('No se pudo guardar el producto en la nube.')}};
+ const handleAddCategory=async()=>{
+  const name=prompt('Nombre de la nueva categoría de inventario:');
+  if(!name||!name.trim())return;
+  try{await addInventoryCategory(name.trim());setF(prev=>({...prev,category:name.trim()}))}
+  catch(err){console.error(err);alert('No se pudo guardar la nueva categoría en la nube. Inténtalo de nuevo.')}
+ };
+ const add=async()=>{if(closed)return alert('Este mes ya está cerrado.');if(!f.name||!+f.qty)return alert('Completa detalle y cantidad.');const item:InventoryItem={id:uid(),name:f.name,category:f.category,talla:f.talla.trim(),color:f.color.trim(),qty:+f.qty,unitValue:unitNio,currency:f.currency as 'C$'|'US$',enteredUnitValue:entered};try{await addInventoryItemRemote(businessId,month,item);reloadInventory();if(logCtx)logActivity(businessId,logCtx.userId,logCtx.username,'created','monthly_inventory',`Agregó "${item.name}" al inventario de ${month}`);setF(prev=>({...prev,name:'',talla:'',color:'',qty:'',unitValue:''}))}catch(err){console.error(err);alert('No se pudo guardar el producto en la nube.')}};
  const removeItem=async(id:string,name?:string)=>{try{await deleteInventoryItemRemote(id);reloadInventory();if(logCtx)logActivity(businessId,logCtx.userId,logCtx.username,'deleted','monthly_inventory',`Eliminó "${name||'un producto'}" del inventario de ${month}`)}catch(err){console.error(err);alert('No se pudo borrar el producto.')}};
  const removeMonth=async(m:string)=>{try{await deleteInventoryMonthRemote(businessId,m);reloadInventory();if(logCtx)logActivity(businessId,logCtx.userId,logCtx.username,'deleted','monthly_inventory',`Eliminó el inventario del mes ${m}`)}catch(err){console.error(err);alert('No se pudo borrar el inventario de ese mes.')}};
- return <><Panel title={`Inventario · ${month}`}>{closed?<div className="closedBanner">✓ Este mes está CERRADO.</div>:<><div className="form grid"><Input l="Producto / material" v={f.name} s={v=>setF({...f,name:v})}/><Select l="Categoría" v={f.category} s={v=>setF({...f,category:v})} opts={['Camisas','Hilos','Tintas','Vinil','Sublimación','Empaque','Otros']}/><Input l="Cantidad física" v={f.qty} s={v=>setF({...f,qty:v})} type="number"/><MoneyInput l="Valor unitario" v={f.unitValue} s={v=>setF({...f,unitValue:v})} c={f.currency as 'C$'|'US$'} sc={c=>setF({...f,currency:c})}/><div className="conversion"><span>Valor unitario convertido</span><b>{dual(unitNio,rate)}</b></div><button className="btn primary" onClick={add}>+ Agregar al conteo</button></div><div className="note">Al presionar “Agregar al conteo”, el producto queda registrado y guardado automáticamente en la nube. No necesitas guardar el inventario otra vez.</div><Table heads={['Producto/material','Categoría','Cantidad','Unit. C$','Unit. US$','Total C$','Total US$','Acción']} rows={items.map((x:InventoryItem)=>[x.name,x.category,x.qty,money(x.unitValue,'C$'),money(rate>0?x.unitValue/rate:0,'US$'),money(x.qty*x.unitValue,'C$'),money(rate>0?x.qty*x.unitValue/rate:0,'US$'),<button className="dangerSmall" onClick={()=>removeItem(x.id,x.name)}>Borrar</button>])}/><div className="cards"><div className="card"><span>LÍNEAS CONTADAS</span><strong>{items.length}</strong></div><div className="card"><span>VALOR INVENTARIO</span><strong>{dual(total,rate)}</strong></div></div></>}</Panel><Panel title="Historial de inventarios"><Table heads={['Mes','Fecha','Productos/materiales','Total C$','Total US$','Notas','Acción']} rows={[...closes].sort((a:InventoryClose,b:InventoryClose)=>b.month.localeCompare(a.month)).map((x:InventoryClose)=>[x.month,x.date,x.items.length,money(x.total,'C$'),money(rate>0?x.total/rate:0,'US$'),x.notes,<button className="dangerSmall" onClick={()=>{if(confirm(`¿Borrar el inventario de ${x.month}?`))removeMonth(x.month)}}>Borrar</button>])}/></Panel></>
+
+ // ---- Importar inventario desde un archivo de Excel/CSV (Detalle, Talla, Color, Cantidad, Precio) ----
+ const [importBusy,setImportBusy]=useState(false);
+ const [importPreview,setImportPreview]=useState<InventoryItem[]|null>(null);
+ const [importCurrency,setImportCurrency]=useState<'C$'|'US$'>('C$');
+ const [importMessage,setImportMessage]=useState('');
+ const fileRef=useRef<HTMLInputElement>(null);
+ const toNum=(v:any):number=>{if(typeof v==='number')return v;const s=String(v??'').replace(/[^0-9.\-]/g,'');return s?Number(s):NaN};
+ const norm=(s:string)=>String(s||'').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+ const parseFile=async(file:File)=>{
+  setImportMessage('');setImportPreview(null);
+  if(closed){setImportMessage('Este mes ya está cerrado, no se puede importar.');return}
+  setImportBusy(true);
+  try{
+   const XLSX=await import('xlsx');
+   const isCsv=/\.csv$/i.test(file.name);
+   const wb=isCsv?XLSX.read(await file.text(),{type:'string'}):XLSX.read(await file.arrayBuffer(),{type:'array'});
+   const sheet=wb.Sheets[wb.SheetNames[0]];
+   const rows:any[]=XLSX.utils.sheet_to_json(sheet,{defval:''});
+   const findKey=(row:any,names:string[])=>Object.keys(row).find(k=>names.includes(norm(k)));
+   const parsed:InventoryItem[]=[];
+   for(const row of rows){
+    const kName=findKey(row,['detalle','producto','producto / material','producto/material','nombre','descripcion']);
+    const kTalla=findKey(row,['talla','size']);
+    const kColor=findKey(row,['color']);
+    const kQty=findKey(row,['cantidad','qty','cant']);
+    const kPrice=findKey(row,['precio','precio unitario','valor unitario','unitario']);
+    const name=kName?String(row[kName]).trim():'';
+    const qty=kQty!==undefined?toNum(row[kQty]):NaN;
+    const price=kPrice!==undefined?toNum(row[kPrice]):NaN;
+    if(!name||!Number.isFinite(qty)||qty<=0)continue;
+    parsed.push({id:uid(),name,category:'',talla:kTalla?String(row[kTalla]).trim():'',color:kColor?String(row[kColor]).trim():'',qty,unitValue:0,enteredUnitValue:Number.isFinite(price)?price:0});
+   }
+   if(!parsed.length){setImportMessage('No se encontraron filas válidas. Revisa que el archivo tenga columnas Detalle, Cantidad y Precio (Talla y Color son opcionales).')}
+   else{setImportPreview(parsed);setImportMessage(`Se leyeron ${parsed.length} productos del archivo. Revisa la vista previa y confirma para guardarlos.`)}
+  }catch(err){console.error(err);setImportMessage('No se pudo leer el archivo. Asegúrate de que sea un Excel (.xlsx) o CSV válido.')}
+  finally{setImportBusy(false)}
+ };
+ const cancelImport=()=>{setImportPreview(null);setImportMessage('');if(fileRef.current)fileRef.current.value=''};
+ const confirmImport=async()=>{
+  if(!importPreview||!importPreview.length||!businessId)return;
+  if(closed)return alert('Este mes ya está cerrado.');
+  setImportBusy(true);
+  try{
+   const rows=importPreview.map(p=>({...p,category:f.category,currency:importCurrency,unitValue:toNio(p.enteredUnitValue||0,importCurrency as 'C$'|'US$',rate)}));
+   await addInventoryItemsBulkRemote(businessId,month,rows);
+   reloadInventory();
+   if(logCtx)logActivity(businessId,logCtx.userId,logCtx.username,'created','monthly_inventory',`Importó ${rows.length} productos desde Excel al inventario de ${month}`);
+   setImportMessage(`Se importaron ${rows.length} productos.`);
+   setImportPreview(null);
+   if(fileRef.current)fileRef.current.value='';
+  }catch(err){console.error(err);setImportMessage('No se pudo guardar la importación en la nube. Inténtalo de nuevo.')}
+  finally{setImportBusy(false)}
+ };
+
+ return <><Panel title={`Inventario · ${month}`}>{closed?<div className="closedBanner">✓ Este mes está CERRADO.</div>:<><div className="form grid">
+ <Input l="Detalle" v={f.name} s={v=>setF({...f,name:v})}/>
+ <label><span>Categoría <button type="button" className="addChip" onClick={handleAddCategory} title="Agregar categoría">+</button></span><select value={f.category} onChange={e=>setF({...f,category:e.target.value})}>{categories.map((c:string)=><option key={c}>{c}</option>)}</select></label>
+ <Input l="Talla" v={f.talla} s={v=>setF({...f,talla:v})}/>
+ <Input l="Color" v={f.color} s={v=>setF({...f,color:v})}/>
+ <Input l="Cantidad" v={f.qty} s={v=>setF({...f,qty:v})} type="number"/>
+ <MoneyInput l="Precio" v={f.unitValue} s={v=>setF({...f,unitValue:v})} c={f.currency as 'C$'|'US$'} sc={c=>setF({...f,currency:c})}/>
+ <div className="conversion"><span>Precio convertido</span><b>{dual(unitNio,rate)}</b></div>
+ <button className="btn primary" onClick={add}>+ Agregar al conteo</button>
+ </div><div className="note">Al presionar “Agregar al conteo”, el producto queda registrado y guardado automáticamente en la nube. No necesitas guardar el inventario otra vez.</div></>}
+ <Table heads={['Detalle','Categoría','Talla','Color','Cantidad','Precio C$','Precio US$','Total C$','Total US$','Acción']} rows={items.map((x:InventoryItem)=>[x.name,x.category,x.talla||'—',x.color||'—',x.qty,money(x.unitValue,'C$'),money(rate>0?x.unitValue/rate:0,'US$'),money(x.qty*x.unitValue,'C$'),money(rate>0?x.qty*x.unitValue/rate:0,'US$'),<button className="dangerSmall" onClick={()=>removeItem(x.id,x.name)}>Borrar</button>])}/>
+ <div className="cards"><div className="card"><span>LÍNEAS CONTADAS</span><strong>{items.length}</strong></div><div className="card"><span>VALOR INVENTARIO</span><strong>{dual(total,rate)}</strong></div></div></Panel>
+ <Panel title="Importar inventario desde Excel">
+ <p className="muted">Sube tu Excel (.xlsx) o CSV con las columnas Detalle, Talla, Color, Cantidad y Precio — igual como lo llevas tú. La categoría de todo el archivo es la que tengas elegida arriba en "Categoría", y el precio se toma en la moneda que elijas aquí.</p>
+ {closed?<p className="empty">Este mes ya está cerrado, no se puede importar.</p>:<>
+ <div className="form inline">
+  <label><span>Moneda del archivo</span><select value={importCurrency} onChange={e=>setImportCurrency(e.target.value as 'C$'|'US$')}><option value="C$">C$</option><option value="US$">US$</option></select></label>
+  <label><span>Archivo (.xlsx o .csv)</span><input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" disabled={importBusy} onChange={e=>{const file=e.target.files?.[0];if(file)parseFile(file)}}/></label>
+ </div>
+ {importMessage&&<p className={importPreview?.length?'note':'empty'}>{importMessage}</p>}
+ {!!importPreview?.length&&<>
+  <Table heads={['Detalle','Talla','Color','Cantidad','Precio']} rows={importPreview.slice(0,20).map(p=>[p.name,p.talla||'—',p.color||'—',p.qty,money(p.enteredUnitValue||0,importCurrency)])}/>
+  {importPreview.length>20&&<p className="muted">Mostrando los primeros 20 de {importPreview.length} productos.</p>}
+  <div className="actions"><button className="btn primary" disabled={importBusy} onClick={confirmImport}>{importBusy?'Guardando…':`Confirmar importación de ${importPreview.length} productos`}</button><button className="btn" onClick={cancelImport}>Cancelar</button></div>
+ </>}
+ </>}
+ </Panel>
+ <Panel title="Historial de inventarios"><Table heads={['Mes','Fecha','Productos/materiales','Total C$','Total US$','Notas','Acción']} rows={[...closes].sort((a:InventoryClose,b:InventoryClose)=>b.month.localeCompare(a.month)).map((x:InventoryClose)=>[x.month,x.date,x.items.length,money(x.total,'C$'),money(rate>0?x.total/rate:0,'US$'),x.notes,<button className="dangerSmall" onClick={()=>{if(confirm(`¿Borrar el inventario de ${x.month}?`))removeMonth(x.month)}}>Borrar</button>])}/></Panel></>
 }
 function MonthClosing({closes,monthCloses,addMonthClose,sales,expenses,accounts,month,rate,debts,debtPayments}:any){
  const inv=[...closes].reverse().find((x:InventoryClose)=>x.month===month),closed=monthCloses.find((x:MonthClose)=>x.month===month),previous=[...monthCloses].filter((x:MonthClose)=>x.month<month).sort((a:MonthClose,b:MonthClose)=>b.month.localeCompare(a.month))[0];

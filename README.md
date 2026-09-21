@@ -135,3 +135,15 @@ Esta actualización parte del ZIP `impresa-main 2.zip` (v3.24.0, con tema claro,
 - **Todas las pestañas**: los cuadros (paneles) de toda la aplicación —Dashboard incluido— ahora tienen más separación entre sí: sombra más marcada, un borde de color en la parte de arriba y más espacio entre cuadros, para que cada sección se distinga claramente en vez de verse todo junto sobre fondo blanco. Esto no cambia ningún dato ni cálculo, solo la apariencia.
 
 No requiere ninguna migración nueva — son cambios de interfaz (componentes y estilos), no de base de datos.
+
+## v3.26.0 — Categorías y métodos de pago "+", ventas pendientes en rojo, orden de pestañas, e inventario tipo Excel (Detalle/Talla/Color) con importación
+Requiere correr en Supabase, en este orden: `migration/009_custom_categories_and_payment_methods.sql` y `migration/010_inventory_talla_color.sql`.
+
+- **Inventario, Categoría**: junto a la palabra "Categoría" hay un botón **+** para agregar una categoría nueva (te la pide con una ventanita, la guarda en la nube y la deja seleccionada). Las categorías que agregues se ven igual desde cualquier dispositivo.
+- **Ventas, Método de pago**: junto a "Método de pago" también hay un botón **+** para agregar un método nuevo (por ejemplo "Tarjeta"), tanto al registrar/editar una venta como al registrar un abono. Ya no está limitado a solo Transferencia/Efectivo — se guarda igual que las categorías, y aparece también como grupo nuevo en "Ventas Transferencia Efectivo".
+- **Ventas**: una venta con estado "Pendiente" (nada pagado) ahora sombrea toda la fila en **rojo**. Una venta con "Pago parcial" se sigue viendo en amarillo, como antes.
+- **Orden de pestañas**: "Deudas" ahora aparece arriba de "Cierre de mes" en el menú, para registrar pagos de deudas antes de llegar al cierre.
+- **Inventario, estilo Excel**: se agregaron los campos **Talla** y **Color** al formulario y a la tabla (junto a Detalle, Categoría, Cantidad y Precio), para que puedas llevar tu inventario igual que en tu hoja de Excel.
+- **Inventario, importar desde Excel**: nueva sección "Importar inventario desde Excel" en la pestaña Inventario. Subes tu archivo `.xlsx` o `.csv` con columnas Detalle, Talla, Color, Cantidad y Precio (el orden de las columnas no importa, se reconocen por el nombre), eliges en qué moneda vienen los precios del archivo, revisas una vista previa y confirmas para guardar todos los productos de una sola vez en el inventario del mes seleccionado. La categoría de todo el archivo importado es la que tengas elegida en el formulario de arriba.
+
+No se perdió ningún dato existente: los productos de inventario que ya tenías se quedan igual, solo con Talla y Color vacíos hasta que los edites o los vuelvas a registrar.

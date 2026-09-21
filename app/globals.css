@@ -309,13 +309,25 @@ main>.panel,main>.kpis,main>.cards,main>.dashboardGrid,main>.statementGrid,main>
 .methodBadge{display:inline-flex;padding:4px 10px;border-radius:20px;font-size:10px;font-weight:800;border:1px solid;white-space:nowrap}
 .methodBadge.transfer{color:#1d4ea8;background:#e0ebff;border-color:#b7cdf3}
 .methodBadge.cash{color:#0f7a52;background:#dcf5ea;border-color:#aee0c6}
+.methodBadge.other{color:#7451b4;background:#f1e9fb;border-color:#ded0f2}
 .methodBadge.unclassified{color:#5a6e85;background:#eef2f7;border-color:#d6dfea}
 
 /* Ventas Transferencia Efectivo: cada grupo en su propio cuadro con acento de color */
 .methodSection:before{background:none}
 .methodSection.transfer{border-top:3px solid #2863cd}
 .methodSection.cash{border-top:3px solid #12a56f}
+.methodSection.other{border-top:3px solid #7451b4}
 .methodSection.unclassified{border-top:3px solid #8a97a8}
 .methodSection.transfer h2{border-left-color:#2863cd}
 .methodSection.cash h2{border-left-color:#12a56f}
+.methodSection.other h2{border-left-color:#7451b4}
 .methodSection.unclassified h2{border-left-color:#8a97a8}
+
+/* Botón "+" para agregar categorías / métodos de pago nuevos desde la app */
+.addChip{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#2863cd;color:#fff;font-weight:900;font-size:13px;line-height:1;border:none;cursor:pointer;padding:0;margin-left:6px;vertical-align:middle}
+.addChip:hover{background:#1c50b0}
+
+/* Ventas: la fila se sombra en rojo cuando la venta está totalmente pendiente (nada pagado). El amarillo de .salePending queda solo para pago parcial. */
+tr.saleUnpaid td,tbody tr.saleUnpaid td{background:#fff0f0;border-bottom-color:#f3c9cc}
+tr.saleUnpaid td:first-child{box-shadow:inset 4px 0 0 #aa2936}
+tr.saleUnpaid:hover td,tbody tr.saleUnpaid:hover td{background:#ffe1e3}
