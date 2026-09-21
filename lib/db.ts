@@ -10,7 +10,7 @@ export type Payment = { id: string; date: string; amount: number; note?: string;
 export type Sale = { id: string; date: string; client: string; description: string; amount: number; currency?: Currency; enteredAmount?: number; status: string; paidAmount?: number; payments?: Payment[]; paymentMethod?: PaymentMethod };
 export type Expense = { id: string; date: string; category: string; description: string; amount: number; currency?: Currency; enteredAmount?: number };
 export type Account = { id: string; name: string; currency: Currency; balance: number; updated: string };
-export type InventoryItem = { id: string; name: string; category: string; talla?: string; color?: string; qty: number; unitValue: number; currency?: Currency; enteredUnitValue?: number };
+export type InventoryItem = { id: string; name: string; category: string; talla?: string; color?: string; qty: number; unitValue: number; currency?: Currency; enteredUnitValue?: number; note?: string };
 export type InventoryClose = { id: string; month: string; date: string; items: InventoryItem[]; total: number; notes: string };
 export type DebtPayment = { id: string; accountId: string; accountName: string; currency: Currency; amount: number; equivalentC: number; note: string; debtId?: string; debtDescription?: string };
 export type Debt = { id: string; description: string; totalAmount: number; currency?: Currency; enteredTotal?: number; affectsPercent: boolean; createdAt: string };
@@ -332,16 +332,23 @@ export async function loadInventory(businessId: string): Promise<InventoryClose[
   const byMonth: Record<string, any[]> = {};
   (items || []).forEach((r: any) => { (byMonth[r.month] ||= []).push(r); });
   return Object.entries(byMonth).map(([month, rows]) => {
-    const mapped: InventoryItem[] = rows.map((r: any) => ({ id: r.id, name: r.product_name, category: r.category || '', talla: r.talla || '', color: r.color || '', qty: Number(r.quantity) || 0, unitValue: Number(r.unit_value_cordobas) || 0, currency: fromDbCurrency(r.currency), enteredUnitValue: r.entered_unit_value != null ? Number(r.entered_unit_value) : undefined }));
+    const mapped: InventoryItem[] = rows.map((r: any) => ({ id: r.id, name: r.product_name, category: r.category || '', talla: r.talla || '', color: r.color || '', qty: Number(r.quantity) || 0, unitValue: Number(r.unit_value_cordobas) || 0, currency: fromDbCurrency(r.currency), enteredUnitValue: r.entered_unit_value != null ? Number(r.entered_unit_value) : undefined, note: r.note || '' }));
     const total = mapped.reduce((a, x) => a + x.qty * x.unitValue, 0);
     return { id: month, month, date: month, items: mapped, total, notes: notesByMonth[month] || '' };
   });
 }
+function inventoryItemFields(item: InventoryItem) {
+  return { product_name: item.name, category: item.category, talla: item.talla || null, color: item.color || null, quantity: item.qty, unit_value_cordobas: item.unitValue, currency: toDbCurrency(item.currency), entered_unit_value: item.enteredUnitValue ?? null, note: item.note || null };
+}
 function inventoryItemToRow(businessId: string, month: string, item: InventoryItem) {
-  return { id: item.id, business_id: businessId, month, product_name: item.name, category: item.category, talla: item.talla || null, color: item.color || null, quantity: item.qty, unit_value_cordobas: item.unitValue, currency: toDbCurrency(item.currency), entered_unit_value: item.enteredUnitValue ?? null };
+  return { id: item.id, business_id: businessId, month, ...inventoryItemFields(item) };
 }
 export async function addInventoryItemRemote(businessId: string, month: string, item: InventoryItem) {
   const { error } = await supabase.from('monthly_inventory').insert(inventoryItemToRow(businessId, month, item));
+  if (error) throw error;
+}
+export async function updateInventoryItemRemote(itemId: string, item: InventoryItem) {
+  const { error } = await supabase.from('monthly_inventory').update(inventoryItemFields(item)).eq('id', itemId);
   if (error) throw error;
 }
 // Importación desde Excel: inserta muchos productos de una sola vez (en

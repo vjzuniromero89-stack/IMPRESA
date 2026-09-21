@@ -6,7 +6,7 @@ import ModuleIcon from '../components/ModuleIcon';
 import Users from '../components/Users';
 import {Sales,Expenses,SalesMethods} from '../components/SalesWorkspace';
 import type {Payment,Sale,Expense,Account,InventoryItem,InventoryClose,DebtPayment,MonthClose,Quote,InitialBase,AppUser,Debt,DebtPaymentRecord,AccountBalanceEntry} from '../lib/db';
-import {uid,ensureBusiness,fetchBusinessSettings,updateRateRemote,confirmInitialBaseRemote,useSalesCloud,useExpensesCloud,useAccountsCloud,useQuotesCloud,useMonthClosesCloud,useDebtsCloud,loadInventory,addInventoryItemRemote,addInventoryItemsBulkRemote,deleteInventoryItemRemote,deleteInventoryMonthRemote,logActivity,loadDebtPayments,addDebtPaymentRemote,removeDebtPaymentRemote,loadAccountBalanceHistory,addAccountBalanceHistoryRemote,removeAccountBalanceHistoryRemote,addInventoryCategoryRemote,addPaymentMethodRemote} from '../lib/db';
+import {uid,ensureBusiness,fetchBusinessSettings,updateRateRemote,confirmInitialBaseRemote,useSalesCloud,useExpensesCloud,useAccountsCloud,useQuotesCloud,useMonthClosesCloud,useDebtsCloud,loadInventory,addInventoryItemRemote,addInventoryItemsBulkRemote,updateInventoryItemRemote,deleteInventoryItemRemote,deleteInventoryMonthRemote,logActivity,loadDebtPayments,addDebtPaymentRemote,removeDebtPaymentRemote,loadAccountBalanceHistory,addAccountBalanceHistoryRemote,removeAccountBalanceHistoryRemote,addInventoryCategoryRemote,addPaymentMethodRemote} from '../lib/db';
 
 const CURRENT_USER_KEY='impresa_current_user';
 
@@ -163,6 +163,7 @@ function Inventory({closes,businessId,reloadInventory,monthCloses,month,rate,log
  const items=existing?.items||[];
  const categories:string[]=(inventoryCategories&&inventoryCategories.length)?inventoryCategories:['Camisas','Hilos','Tintas','Vinil','Sublimación','Empaque','Otros'];
  const [f,setF]=useState({name:'',category:categories[0]||'Camisas',talla:'',color:'',qty:'',unitValue:'',currency:'C$'});
+ const [editingId,setEditingId]=useState<string|null>(null);
  const total=items.reduce((a:number,x:InventoryItem)=>a+x.qty*x.unitValue,0),entered=+f.unitValue||0,unitNio=toNio(entered,f.currency as 'C$'|'US$',rate),closed=monthCloses.some((x:MonthClose)=>x.month===month);
  const handleAddCategory=async()=>{
   const name=prompt('Nombre de la nueva categoría de inventario:');
@@ -170,8 +171,29 @@ function Inventory({closes,businessId,reloadInventory,monthCloses,month,rate,log
   try{await addInventoryCategory(name.trim());setF(prev=>({...prev,category:name.trim()}))}
   catch(err){console.error(err);alert('No se pudo guardar la nueva categoría en la nube. Inténtalo de nuevo.')}
  };
- const add=async()=>{if(closed)return alert('Este mes ya está cerrado.');if(!f.name||!+f.qty)return alert('Completa detalle y cantidad.');const item:InventoryItem={id:uid(),name:f.name,category:f.category,talla:f.talla.trim(),color:f.color.trim(),qty:+f.qty,unitValue:unitNio,currency:f.currency as 'C$'|'US$',enteredUnitValue:entered};try{await addInventoryItemRemote(businessId,month,item);reloadInventory();if(logCtx)logActivity(businessId,logCtx.userId,logCtx.username,'created','monthly_inventory',`Agregó "${item.name}" al inventario de ${month}`);setF(prev=>({...prev,name:'',talla:'',color:'',qty:'',unitValue:''}))}catch(err){console.error(err);alert('No se pudo guardar el producto en la nube.')}};
- const removeItem=async(id:string,name?:string)=>{try{await deleteInventoryItemRemote(id);reloadInventory();if(logCtx)logActivity(businessId,logCtx.userId,logCtx.username,'deleted','monthly_inventory',`Eliminó "${name||'un producto'}" del inventario de ${month}`)}catch(err){console.error(err);alert('No se pudo borrar el producto.')}};
+ const cancelEdit=()=>{setEditingId(null);setF(prev=>({...prev,name:'',talla:'',color:'',qty:'',unitValue:''}))};
+ const editItem=(item:InventoryItem)=>{
+  setEditingId(item.id);
+  setF({name:item.name,category:item.category||categories[0]||'Camisas',talla:item.talla||'',color:item.color||'',qty:String(item.qty),unitValue:String(item.enteredUnitValue??(item.currency==='US$'&&rate>0?item.unitValue/rate:item.unitValue)),currency:item.currency||'C$'});
+ };
+ const save=async()=>{
+  if(closed)return alert('Este mes ya está cerrado.');
+  if(!f.name||!+f.qty)return alert('Completa detalle y cantidad.');
+  const item:InventoryItem={id:editingId||uid(),name:f.name,category:f.category,talla:f.talla.trim(),color:f.color.trim(),qty:+f.qty,unitValue:unitNio,currency:f.currency as 'C$'|'US$',enteredUnitValue:entered};
+  try{
+   if(editingId){
+    await updateInventoryItemRemote(editingId,item);
+    reloadInventory();
+    if(logCtx)logActivity(businessId,logCtx.userId,logCtx.username,'updated','monthly_inventory',`Editó "${item.name}" en el inventario de ${month}`);
+   }else{
+    await addInventoryItemRemote(businessId,month,item);
+    reloadInventory();
+    if(logCtx)logActivity(businessId,logCtx.userId,logCtx.username,'created','monthly_inventory',`Agregó "${item.name}" al inventario de ${month}`);
+   }
+   cancelEdit();
+  }catch(err){console.error(err);alert(editingId?'No se pudo guardar los cambios en la nube. Inténtalo de nuevo.':'No se pudo guardar el producto en la nube.')}
+ };
+ const removeItem=async(id:string,name?:string)=>{try{await deleteInventoryItemRemote(id);reloadInventory();if(editingId===id)cancelEdit();if(logCtx)logActivity(businessId,logCtx.userId,logCtx.username,'deleted','monthly_inventory',`Eliminó "${name||'un producto'}" del inventario de ${month}`)}catch(err){console.error(err);alert('No se pudo borrar el producto.')}};
  const removeMonth=async(m:string)=>{try{await deleteInventoryMonthRemote(businessId,m);reloadInventory();if(logCtx)logActivity(businessId,logCtx.userId,logCtx.username,'deleted','monthly_inventory',`Eliminó el inventario del mes ${m}`)}catch(err){console.error(err);alert('No se pudo borrar el inventario de ese mes.')}};
 
  // ---- Importar inventario desde un archivo de Excel/CSV (Detalle, Talla, Color, Cantidad, Precio) ----
@@ -187,6 +209,8 @@ function Inventory({closes,businessId,reloadInventory,monthCloses,month,rate,log
  const COLOR_HEADERS=['color'];
  const QTY_HEADERS=['cantidad','qty','cant'];
  const PRICE_HEADERS=['precio','precio unitario','valor unitario','unitario'];
+ const DATE_HEADERS=['fecha','date'];
+ const MISSING_HEADERS=['faltante','falta','diferencia'];
  const ALL_HINTS=[...NAME_HEADERS,...TALLA_HEADERS,...COLOR_HEADERS,...QTY_HEADERS,...PRICE_HEADERS];
  // Extrae los productos de una hoja: busca la fila de encabezados entre las
  // primeras filas (muchos Excel traen un título o un logo arriba, como
@@ -202,13 +226,21 @@ function Inventory({closes,businessId,reloadInventory,monthCloses,month,rate,log
   const headerRow=(raw[headerRowIdx]||[]).map((h:any)=>String(h||'').trim());
   const findFirstMatch=(names:string[])=>{for(let idx=0;idx<headerRow.length;idx++)if(names.includes(norm(headerRow[idx])))return idx;return -1};
   const iName=findFirstMatch(NAME_HEADERS),iTalla=findFirstMatch(TALLA_HEADERS),iColor=findFirstMatch(COLOR_HEADERS),iQty=findFirstMatch(QTY_HEADERS),iPrice=findFirstMatch(PRICE_HEADERS);
+  const iDate=findFirstMatch(DATE_HEADERS),iMissing=findFirstMatch(MISSING_HEADERS);
   const parsed:InventoryItem[]=[];
   for(const arr of raw.slice(headerRowIdx+1)){
    const name=iName>=0?String(arr[iName]??'').trim():'';
    const qty=iQty>=0?toNum(arr[iQty]):NaN;
    const price=iPrice>=0?toNum(arr[iPrice]):NaN;
    if(!name||!Number.isFinite(qty)||qty<=0)continue;
-   parsed.push({id:uid(),name,category:'',talla:iTalla>=0?String(arr[iTalla]??'').trim():'',color:iColor>=0?String(arr[iColor]??'').trim():'',qty,unitValue:0,enteredUnitValue:Number.isFinite(price)?price:0});
+   // Columnas extra del Excel que la tabla de la app no muestra (Fecha,
+   // Faltante) se guardan en una nota, para no perder esa información.
+   const noteParts:string[]=[];
+   const dateVal=iDate>=0?String(arr[iDate]??'').trim():'';
+   const missingVal=iMissing>=0?String(arr[iMissing]??'').trim():'';
+   if(dateVal)noteParts.push(`Fecha: ${dateVal}`);
+   if(missingVal)noteParts.push(`Faltante: ${missingVal}`);
+   parsed.push({id:uid(),name,category:'',talla:iTalla>=0?String(arr[iTalla]??'').trim():'',color:iColor>=0?String(arr[iColor]??'').trim():'',qty,unitValue:0,enteredUnitValue:Number.isFinite(price)?price:0,note:noteParts.join(' · ')});
   }
   return parsed;
  };
@@ -247,7 +279,7 @@ function Inventory({closes,businessId,reloadInventory,monthCloses,month,rate,log
   finally{setImportBusy(false)}
  };
 
- return <><Panel title={`Inventario · ${month}`}>{closed?<div className="closedBanner">✓ Este mes está CERRADO.</div>:<><div className="form grid">
+ return <><Panel title={`Inventario · ${month}`}>{closed?<div className="closedBanner">✓ Este mes está CERRADO.</div>:<>{editingId&&<p className="editorNotice">Editando "{f.name || 'producto'}". Los cambios se guardan al presionar "Guardar cambios".</p>}<div className="form grid">
  <Input l="Detalle" v={f.name} s={v=>setF({...f,name:v})}/>
  <label><span>Categoría <button type="button" className="addChip" onClick={handleAddCategory} title="Agregar categoría">+</button></span><select value={f.category} onChange={e=>setF({...f,category:e.target.value})}>{categories.map((c:string)=><option key={c}>{c}</option>)}</select></label>
  <Input l="Talla" v={f.talla} s={v=>setF({...f,talla:v})}/>
@@ -255,9 +287,9 @@ function Inventory({closes,businessId,reloadInventory,monthCloses,month,rate,log
  <Input l="Cantidad" v={f.qty} s={v=>setF({...f,qty:v})} type="number"/>
  <MoneyInput l="Precio" v={f.unitValue} s={v=>setF({...f,unitValue:v})} c={f.currency as 'C$'|'US$'} sc={c=>setF({...f,currency:c})}/>
  <div className="conversion"><span>Precio convertido</span><b>{dual(unitNio,rate)}</b></div>
- <button className="btn primary" onClick={add}>+ Agregar al conteo</button>
- </div><div className="note">Al presionar “Agregar al conteo”, el producto queda registrado y guardado automáticamente en la nube. No necesitas guardar el inventario otra vez.</div></>}
- <Table heads={['Detalle','Categoría','Talla','Color','Cantidad','Precio C$','Precio US$','Total C$','Total US$','Acción']} rows={items.map((x:InventoryItem)=>[x.name,x.category,x.talla||'—',x.color||'—',x.qty,money(x.unitValue,'C$'),money(rate>0?x.unitValue/rate:0,'US$'),money(x.qty*x.unitValue,'C$'),money(rate>0?x.qty*x.unitValue/rate:0,'US$'),<button className="dangerSmall" onClick={()=>removeItem(x.id,x.name)}>Borrar</button>])}/>
+ <div className="actions"><button className="btn primary" onClick={save}>{editingId?'Guardar cambios':'+ Agregar al conteo'}</button>{editingId&&<button className="btn" onClick={cancelEdit}>Cancelar edición</button>}</div>
+ </div><div className="note">{editingId?'Al guardar los cambios, se actualiza este producto en la nube.':'Al presionar “Agregar al conteo”, el producto queda registrado y guardado automáticamente en la nube. No necesitas guardar el inventario otra vez.'}</div></>}
+ <Table heads={['Detalle','Categoría','Talla','Color','Cantidad','Precio C$','Precio US$','Total C$','Total US$','Acción']} rows={items.map((x:InventoryItem)=>[<span>{x.name}{x.note&&<span className="noteDot" title={x.note}> ⓘ</span>}</span>,x.category,x.talla||'—',x.color||'—',x.qty,money(x.unitValue,'C$'),money(rate>0?x.unitValue/rate:0,'US$'),money(x.qty*x.unitValue,'C$'),money(rate>0?x.qty*x.unitValue/rate:0,'US$'),<div className="actions"><button className="small" onClick={()=>editItem(x)}>Editar</button><button className="dangerSmall" onClick={()=>removeItem(x.id,x.name)}>Borrar</button></div>])}/>
  <div className="cards"><div className="card"><span>LÍNEAS CONTADAS</span><strong>{items.length}</strong></div><div className="card"><span>VALOR INVENTARIO</span><strong>{dual(total,rate)}</strong></div></div></Panel>
  <Panel title="Importar inventario desde Excel">
  <p className="muted">Sube tu Excel (.xlsx) o CSV con las columnas Detalle, Talla, Color, Cantidad y Precio — igual como lo llevas tú. La categoría de todo el archivo es la que tengas elegida arriba en "Categoría", y el precio se toma en la moneda que elijas aquí.</p>
@@ -268,7 +300,7 @@ function Inventory({closes,businessId,reloadInventory,monthCloses,month,rate,log
  </div>
  {importMessage&&<p className={importPreview?.length?'note':'empty'}>{importMessage}</p>}
  {!!importPreview?.length&&<>
-  <Table heads={['Detalle','Talla','Color','Cantidad','Precio']} rows={importPreview.slice(0,20).map(p=>[p.name,p.talla||'—',p.color||'—',p.qty,money(p.enteredUnitValue||0,importCurrency)])}/>
+  <Table heads={['Detalle','Talla','Color','Cantidad','Precio','Nota']} rows={importPreview.slice(0,20).map(p=>[p.name,p.talla||'—',p.color||'—',p.qty,money(p.enteredUnitValue||0,importCurrency),p.note||'—'])}/>
   {importPreview.length>20&&<p className="muted">Mostrando los primeros 20 de {importPreview.length} productos.</p>}
   <div className="actions"><button className="btn primary" disabled={importBusy} onClick={confirmImport}>{importBusy?'Guardando…':`Confirmar importación de ${importPreview.length} productos`}</button><button className="btn" onClick={cancelImport}>Cancelar</button></div>
  </>}

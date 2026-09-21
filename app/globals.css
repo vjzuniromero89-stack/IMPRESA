@@ -331,3 +331,6 @@ main>.panel,main>.kpis,main>.cards,main>.dashboardGrid,main>.statementGrid,main>
 tr.saleUnpaid td,tbody tr.saleUnpaid td{background:#fff0f0;border-bottom-color:#f3c9cc}
 tr.saleUnpaid td:first-child{box-shadow:inset 4px 0 0 #aa2936}
 tr.saleUnpaid:hover td,tbody tr.saleUnpaid:hover td{background:#ffe1e3}
+
+/* Inventario: ícono junto al producto con nota extra (Fecha/Faltante) leída del Excel importado */
+.noteDot{color:#2863cd;cursor:help;font-size:13px}
