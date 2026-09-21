@@ -6,7 +6,7 @@ import ModuleIcon from '../components/ModuleIcon';
 import Users from '../components/Users';
 import {Sales,Expenses,SalesMethods} from '../components/SalesWorkspace';
 import type {Payment,Sale,Expense,Account,InventoryItem,InventoryClose,DebtPayment,MonthClose,Quote,InitialBase,AppUser,Debt,DebtPaymentRecord,AccountBalanceEntry} from '../lib/db';
-import {uid,ensureBusiness,fetchBusinessSettings,updateRateRemote,confirmInitialBaseRemote,useSalesCloud,useExpensesCloud,useAccountsCloud,useQuotesCloud,useMonthClosesCloud,useDebtsCloud,loadInventory,addInventoryItemRemote,addInventoryItemsBulkRemote,updateInventoryItemRemote,deleteInventoryItemRemote,deleteInventoryMonthRemote,logActivity,loadDebtPayments,addDebtPaymentRemote,removeDebtPaymentRemote,loadAccountBalanceHistory,addAccountBalanceHistoryRemote,removeAccountBalanceHistoryRemote,addInventoryCategoryRemote,addPaymentMethodRemote} from '../lib/db';
+import {uid,ensureBusiness,fetchBusinessSettings,updateRateRemote,confirmInitialBaseRemote,useSalesCloud,useExpensesCloud,useAccountsCloud,useQuotesCloud,useMonthClosesCloud,useDebtsCloud,loadInventory,addInventoryItemRemote,addInventoryItemsBulkRemote,updateInventoryItemRemote,deleteInventoryItemRemote,deleteInventoryMonthRemote,logActivity,loadDebtPayments,addDebtPaymentRemote,removeDebtPaymentRemote,loadAccountBalanceHistory,addAccountBalanceHistoryRemote,removeAccountBalanceHistoryRemote,addInventoryCategoryRemote,addPaymentMethodRemote,addInventorySizeRemote} from '../lib/db';
 
 const CURRENT_USER_KEY='impresa_current_user';
 
@@ -27,6 +27,7 @@ export default function Home(){
  const [initialBase,setInitialBaseLocal]=useState<InitialBase>({confirmed:false,baseUSD:4100,baseC:0});
  const [inventoryCategories,setInventoryCategories]=useState<string[]>(['Camisas','Hilos','Tintas','Vinil','Sublimación','Empaque','Otros']);
  const [paymentMethods,setPaymentMethods]=useState<string[]>(['Transferencia','Efectivo']);
+ const [inventorySizes,setInventorySizes]=useState<string[]>(['XS','S','M','L','XL','XXL','2','4','6','8','10','12','14','16']);
 
  // Inicio de sesión con usuario y contraseña (pestaña Usuarios). Una vez
  // que alguien entra, este navegador lo recuerda (no hay que volver a
@@ -48,7 +49,7 @@ export default function Home(){
  useEffect(()=>{
   if(!businessId)return;
   let cancelled=false;
-  fetchBusinessSettings(businessId).then(s=>{if(!cancelled){setRateLocal(s.rate);setInitialBaseLocal(s.initialBase);setInventoryCategories(s.inventoryCategories);setPaymentMethods(s.paymentMethods);setSettingsReady(true)}}).catch(err=>{console.error('IMPRESA: no se pudo cargar la configuración',err);if(!cancelled)setSettingsReady(true)});
+  fetchBusinessSettings(businessId).then(s=>{if(!cancelled){setRateLocal(s.rate);setInitialBaseLocal(s.initialBase);setInventoryCategories(s.inventoryCategories);setPaymentMethods(s.paymentMethods);setInventorySizes(s.inventorySizes);setSettingsReady(true)}}).catch(err=>{console.error('IMPRESA: no se pudo cargar la configuración',err);if(!cancelled)setSettingsReady(true)});
   return ()=>{cancelled=true}
  },[businessId]);
 
@@ -63,6 +64,12 @@ export default function Home(){
   if(!businessId)throw new Error('Todavía se está preparando tu negocio, intenta de nuevo en un momento.');
   const next=await addPaymentMethodRemote(businessId,name);
   setPaymentMethods(next);
+ };
+ const addInventorySize=async(name:string)=>{
+  if(!businessId)throw new Error('Todavía se está preparando tu negocio, intenta de nuevo en un momento.');
+  const next=await addInventorySizeRemote(businessId,name);
+  setInventorySizes(next);
+  return next;
  };
 
  const logCtx={userId:currentUser?.id,username:currentUser?.username||''};
@@ -99,7 +106,7 @@ export default function Home(){
  },[businessId]);
  const reloadAccountHistory=()=>{if(businessId)loadAccountBalanceHistory(businessId).then(setAccountHistoryLocal).catch(err=>console.error(err))};
 
- const props={sales,setSales,expenses,setExpenses,accounts,setAccounts,closes,businessId,reloadInventory,monthCloses,addMonthClose,initialBase,setInitialBase,quotes,setQuotes,debts,setDebts,debtPayments,reloadDebtPayments,accountHistory,reloadAccountHistory,month,rate,setRate,logCtx,inventoryCategories,addInventoryCategory,paymentMethods,addPaymentMethod};
+ const props={sales,setSales,expenses,setExpenses,accounts,setAccounts,closes,businessId,reloadInventory,monthCloses,addMonthClose,initialBase,setInitialBase,quotes,setQuotes,debts,setDebts,debtPayments,reloadDebtPayments,accountHistory,reloadAccountHistory,month,rate,setRate,logCtx,inventoryCategories,addInventoryCategory,paymentMethods,addPaymentMethod,inventorySizes,addInventorySize};
 
  if(!supabaseConfigured)return <Auth businessId={null} onLogin={()=>{}}/>;
  if(bootError)return <div className="loadingScreen">{bootError}</div>;
@@ -158,18 +165,27 @@ function Accounts({accounts,setAccounts,rate,businessId,logCtx,accountHistory,re
   </Panel>
  })()}
  <Panel title="Agregar cuenta o caja"><div className="form inline"><Input l="Nombre (ej. BAC Dólares)" v={f.name} s={v=>setF({...f,name:v})}/><Select l="Moneda" v={f.currency} s={v=>setF({...f,currency:v})} opts={['C$','US$']}/><button className="btn primary" onClick={add}>Agregar cuenta</button></div><div className="note">Tipo de cambio actual del sistema: C${rate.toFixed(2)} = US$1.00. El resumen convierte automáticamente todas las cuentas. Cada vez que actualizas el saldo de una cuenta, el saldo anterior queda guardado en su "Historial".</div></Panel></>}
-function Inventory({closes,businessId,reloadInventory,monthCloses,month,rate,logCtx,inventoryCategories,addInventoryCategory}:any){
+function Inventory({closes,businessId,reloadInventory,monthCloses,month,rate,logCtx,inventoryCategories,addInventoryCategory,inventorySizes,addInventorySize}:any){
  const existing=[...closes].reverse().find((x:InventoryClose)=>x.month===month);
  const items=existing?.items||[];
  const categories:string[]=(inventoryCategories&&inventoryCategories.length)?inventoryCategories:['Camisas','Hilos','Tintas','Vinil','Sublimación','Empaque','Otros'];
+ const sizes:string[]=(inventorySizes&&inventorySizes.length)?inventorySizes:['XS','S','M','L','XL','XXL','2','4','6','8','10','12','14','16'];
  const [f,setF]=useState({name:'',category:categories[0]||'Camisas',talla:'',color:'',qty:'',unitValue:'',currency:'C$'});
  const [editingId,setEditingId]=useState<string|null>(null);
+ // La talla se elige de la lista guardada (igual que la categoría), para que nadie la escriba mal por error.
+ const sizeOptions=Array.from(new Set(['',...sizes,...(f.talla?[f.talla]:[])]));
  const total=items.reduce((a:number,x:InventoryItem)=>a+x.qty*x.unitValue,0),entered=+f.unitValue||0,unitNio=toNio(entered,f.currency as 'C$'|'US$',rate),closed=monthCloses.some((x:MonthClose)=>x.month===month);
  const handleAddCategory=async()=>{
   const name=prompt('Nombre de la nueva categoría de inventario:');
   if(!name||!name.trim())return;
   try{await addInventoryCategory(name.trim());setF(prev=>({...prev,category:name.trim()}))}
   catch(err){console.error(err);alert('No se pudo guardar la nueva categoría en la nube. Inténtalo de nuevo.')}
+ };
+ const handleAddSize=async()=>{
+  const name=prompt('Nueva talla (por ejemplo S, M, L, 8, 10…):');
+  if(!name||!name.trim())return;
+  try{await addInventorySize(name.trim());setF(prev=>({...prev,talla:name.trim()}))}
+  catch(err){console.error(err);alert('No se pudo guardar la nueva talla en la nube. Inténtalo de nuevo.')}
  };
  const cancelEdit=()=>{setEditingId(null);setF(prev=>({...prev,name:'',talla:'',color:'',qty:'',unitValue:''}))};
  const editItem=(item:InventoryItem)=>{
@@ -263,6 +279,13 @@ function Inventory({closes,businessId,reloadInventory,monthCloses,month,rate,log
   finally{setImportBusy(false)}
  };
  const cancelImport=()=>{setImportPreview(null);setImportMessage('');if(fileRef.current)fileRef.current.value=''};
+ // Tallas que vinieron en el archivo pero no están en la lista guardada — se avisa para no dejarlas mal escritas sin revisar.
+ const normSize=(s:string)=>s.trim().toLowerCase();
+ const unknownImportSizes=importPreview?Array.from(new Set(importPreview.map(p=>(p.talla||'').trim()).filter(t=>t&&!sizes.some(s=>normSize(s)===normSize(t))))):[];
+ const addUnknownSizes=async()=>{
+  try{for(const s of unknownImportSizes)await addInventorySize(s)}
+  catch(err){console.error(err);alert('No se pudieron guardar todas las tallas nuevas. Inténtalo de nuevo.')}
+ };
  const confirmImport=async()=>{
   if(!importPreview||!importPreview.length||!businessId)return;
   if(closed)return alert('Este mes ya está cerrado.');
@@ -282,7 +305,7 @@ function Inventory({closes,businessId,reloadInventory,monthCloses,month,rate,log
  return <><Panel title={`Inventario · ${month}`}>{closed?<div className="closedBanner">✓ Este mes está CERRADO.</div>:<>{editingId&&<p className="editorNotice">Editando "{f.name || 'producto'}". Los cambios se guardan al presionar "Guardar cambios".</p>}<div className="form grid">
  <Input l="Detalle" v={f.name} s={v=>setF({...f,name:v})}/>
  <label><span>Categoría <button type="button" className="addChip" onClick={handleAddCategory} title="Agregar categoría">+</button></span><select value={f.category} onChange={e=>setF({...f,category:e.target.value})}>{categories.map((c:string)=><option key={c}>{c}</option>)}</select></label>
- <Input l="Talla" v={f.talla} s={v=>setF({...f,talla:v})}/>
+ <label><span>Talla <button type="button" className="addChip" onClick={handleAddSize} title="Agregar talla">+</button></span><select value={f.talla} onChange={e=>setF({...f,talla:e.target.value})}>{sizeOptions.map((s:string)=><option key={s||'—'} value={s}>{s||'(Sin talla)'}</option>)}</select></label>
  <Input l="Color" v={f.color} s={v=>setF({...f,color:v})}/>
  <Input l="Cantidad" v={f.qty} s={v=>setF({...f,qty:v})} type="number"/>
  <MoneyInput l="Precio" v={f.unitValue} s={v=>setF({...f,unitValue:v})} c={f.currency as 'C$'|'US$'} sc={c=>setF({...f,currency:c})}/>
@@ -300,7 +323,8 @@ function Inventory({closes,businessId,reloadInventory,monthCloses,month,rate,log
  </div>
  {importMessage&&<p className={importPreview?.length?'note':'empty'}>{importMessage}</p>}
  {!!importPreview?.length&&<>
-  <Table heads={['Detalle','Talla','Color','Cantidad','Precio','Nota']} rows={importPreview.slice(0,20).map(p=>[p.name,p.talla||'—',p.color||'—',p.qty,money(p.enteredUnitValue||0,importCurrency),p.note||'—'])}/>
+  {!!unknownImportSizes.length&&<p className="warning">Estas tallas del archivo no están en tu lista guardada: <b>{unknownImportSizes.join(', ')}</b>. Se importarán tal como vienen, pero revisa que no estén mal escritas — si están bien, agrégalas a tu lista para poder elegirlas después. <button type="button" className="small" onClick={addUnknownSizes}>Agregar {unknownImportSizes.length>1?'estas tallas':'esta talla'} a mi lista</button></p>}
+  <Table heads={['Detalle','Talla','Color','Cantidad','Precio','Nota']} rows={importPreview.slice(0,20).map(p=>[p.name,p.talla||'—',p.color||'—',p.qty,money(p.enteredUnitValue||0,importCurrency),p.note||'—'])} rowClasses={importPreview.slice(0,20).map(p=>p.talla&&unknownImportSizes.includes(p.talla.trim())?'importUnknownSize':'')}/>
   {importPreview.length>20&&<p className="muted">Mostrando los primeros 20 de {importPreview.length} productos.</p>}
   <div className="actions"><button className="btn primary" disabled={importBusy} onClick={confirmImport}>{importBusy?'Guardando…':`Confirmar importación de ${importPreview.length} productos`}</button><button className="btn" onClick={cancelImport}>Cancelar</button></div>
  </>}
@@ -310,7 +334,7 @@ function Inventory({closes,businessId,reloadInventory,monthCloses,month,rate,log
 }
 const MONTH_LABELS=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 function inventoryProductKey(x:{name:string;talla?:string;color?:string}){return [x.name,x.talla||'',x.color||''].map(v=>v.trim().toLowerCase()).join('|')}
-function InventoryDetail({closes}:any){
+function InventoryDetail({closes,monthCloses}:any){
  const allMonths=Array.from(new Set((closes as InventoryClose[]).map(x=>x.month))).sort();
  const years=Array.from(new Set(allMonths.map(m=>m.slice(0,4)))).sort().reverse();
  const currentYear=String(new Date().getFullYear());
@@ -332,6 +356,19 @@ function InventoryDetail({closes}:any){
    qtyByProductMonth[k][m]=(qtyByProductMonth[k][m]||0)+item.qty;
   });
  });
+ // Si ya hiciste el "Cierre de mes" de un mes (el recuento completo quedó definitivo) y un producto que
+ // sí tenías registrado en un mes anterior ya no aparece en el conteo de ese mes cerrado, se asume que
+ // quedó en 0 (no que "no se sabe") — así el sistema sí puede avisar que faltó por completo. Antes de
+ // que cierres el mes no se asume nada, porque puede que todavía no hayas terminado de recontar todo.
+ const closedMonthSet=new Set(((monthCloses||[]) as MonthClose[]).map(x=>x.month));
+ Object.keys(productMeta).forEach(k=>{
+  const firstIdx=monthsInYear.findIndex(m=>qtyByProductMonth[k]?.[m]!==undefined);
+  if(firstIdx===-1)return;
+  for(let idx=firstIdx+1;idx<monthsInYear.length;idx++){
+   const m=monthsInYear[idx];
+   if(closedMonthSet.has(m)&&qtyByProductMonth[k][m]===undefined)qtyByProductMonth[k][m]=0;
+  }
+ });
  const products=Object.keys(productMeta).sort((a,b)=>productMeta[a].name.localeCompare(productMeta[b].name)||productMeta[a].talla.localeCompare(productMeta[b].talla)||productMeta[a].color.localeCompare(productMeta[b].color));
  const prevWithData=(k:string,idx:number):number|undefined=>{for(let j=idx-1;j>=0;j--){const v=qtyByProductMonth[k]?.[monthsInYear[j]];if(v!==undefined)return v}return undefined};
  type Faltante={name:string;talla:string;color:string;from:string;to:string;before:number;after:number;diff:number};
@@ -348,7 +385,7 @@ function InventoryDetail({closes}:any){
  });
  return <>
  <Panel title={`Detalle de inventario por producto · ${year}`}>
-  <p className="muted">Compara, mes a mes, la cantidad contada de cada producto durante el año. Si un producto baja de un mes a otro, la casilla se marca en rojo con la diferencia — así puedes ver de un vistazo si algo faltó al actualizar el inventario.</p>
+  <p className="muted">Compara, mes a mes, la cantidad contada de cada producto durante el año. Si un producto baja de un mes a otro, la casilla se marca en rojo con la diferencia — así puedes ver de un vistazo si algo faltó al actualizar el inventario. Importante: esta comparación solo se activa para un mes después de que le des <b>"Cierre de mes"</b> (Cierre de mes) — mientras el mes sigue abierto, un producto que todavía no has vuelto a contar simplemente se ve en blanco (no se supone que le faltó nada, porque puede que aún no termines el reconteo). En cuanto cierras el mes, cualquier producto que tenías registrado antes y no aparezca en el conteo nuevo de ese mes se toma como que se quedó en 0, y si antes tenías más, se marca como faltante.</p>
   <div className="form inline"><label><span>Año</span><select value={year} onChange={e=>setYear(e.target.value)}>{yearOptions.map(y=><option key={y} value={y}>{y}</option>)}</select></label></div>
   {!products.length?<Empty text="Todavía no hay conteos de inventario registrados en este año."/>:
   <div className="tablewrap"><table><thead><tr><th>Detalle</th><th>Talla</th><th>Color</th>{monthsInYear.map((m,i)=><th key={m}>{MONTH_LABELS[i]}</th>)}</tr></thead><tbody>

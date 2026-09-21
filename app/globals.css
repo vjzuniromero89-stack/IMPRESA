@@ -338,3 +338,7 @@ tr.saleUnpaid:hover td,tbody tr.saleUnpaid:hover td{background:#ffe1e3}
 /* Detalle de Inventario: casilla marcada cuando la cantidad de un producto bajó respecto al conteo anterior */
 td.invShort{background:#fff0f0;color:#aa2936;font-weight:700;box-shadow:inset 3px 0 0 #aa2936}
 .invDiff{display:block;font-weight:600;color:#aa2936;font-size:11px}
+
+/* Aviso ámbar (ej. tallas del Excel que no están en la lista guardada) — distinto del rojo, que se usa para pendientes/faltantes */
+.warning{background:#fff8e6;border:1px solid #f0d38a;color:#7a5b06;border-radius:8px;padding:10px 12px;font-size:13px;display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+tr.importUnknownSize td{background:#fff8e6}

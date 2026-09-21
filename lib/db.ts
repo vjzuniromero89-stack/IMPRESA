@@ -150,8 +150,9 @@ export async function listActivity(businessId: string): Promise<ActivityEntry[]>
 
 const DEFAULT_INVENTORY_CATEGORIES = ['Camisas', 'Hilos', 'Tintas', 'Vinil', 'Sublimación', 'Empaque', 'Otros'];
 const DEFAULT_PAYMENT_METHODS = ['Transferencia', 'Efectivo'];
+const DEFAULT_INVENTORY_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '2', '4', '6', '8', '10', '12', '14', '16'];
 
-export async function fetchBusinessSettings(businessId: string): Promise<{ rate: number; initialBase: InitialBase; inventoryCategories: string[]; paymentMethods: string[] }> {
+export async function fetchBusinessSettings(businessId: string): Promise<{ rate: number; initialBase: InitialBase; inventoryCategories: string[]; paymentMethods: string[]; inventorySizes: string[] }> {
   const { data, error } = await supabase.from('businesses').select('*').eq('id', businessId).single();
   if (error) throw error;
   return {
@@ -163,7 +164,8 @@ export async function fetchBusinessSettings(businessId: string): Promise<{ rate:
       confirmedAt: data.initial_base_confirmed_at ? dateOnly(data.initial_base_confirmed_at) : undefined
     },
     inventoryCategories: (Array.isArray(data.inventory_categories) && data.inventory_categories.length) ? data.inventory_categories : DEFAULT_INVENTORY_CATEGORIES,
-    paymentMethods: (Array.isArray(data.payment_methods) && data.payment_methods.length) ? data.payment_methods : DEFAULT_PAYMENT_METHODS
+    paymentMethods: (Array.isArray(data.payment_methods) && data.payment_methods.length) ? data.payment_methods : DEFAULT_PAYMENT_METHODS,
+    inventorySizes: (Array.isArray(data.inventory_sizes) && data.inventory_sizes.length) ? data.inventory_sizes : DEFAULT_INVENTORY_SIZES
   };
 }
 export async function updateRateRemote(businessId: string, rate: number) {
@@ -181,7 +183,7 @@ export async function confirmInitialBaseRemote(businessId: string, baseC: number
 // dispositivo. Si alguien más agregó una entre que tú cargabas la página,
 // se vuelve a leer la lista actual antes de agregar la tuya, para no perder
 // la del otro.
-async function appendBusinessListRemote(businessId: string, column: 'inventory_categories' | 'payment_methods', fallback: string[], value: string): Promise<string[]> {
+async function appendBusinessListRemote(businessId: string, column: 'inventory_categories' | 'payment_methods' | 'inventory_sizes', fallback: string[], value: string): Promise<string[]> {
   const name = (value || '').trim();
   if (!name) throw new Error('Escribe un nombre antes de guardar.');
   const { data, error } = await supabase.from('businesses').select(column).eq('id', businessId).single();
@@ -198,6 +200,9 @@ export async function addInventoryCategoryRemote(businessId: string, category: s
 }
 export async function addPaymentMethodRemote(businessId: string, method: string): Promise<string[]> {
   return appendBusinessListRemote(businessId, 'payment_methods', DEFAULT_PAYMENT_METHODS, method);
+}
+export async function addInventorySizeRemote(businessId: string, size: string): Promise<string[]> {
+  return appendBusinessListRemote(businessId, 'inventory_sizes', DEFAULT_INVENTORY_SIZES, size);
 }
 
 // ---------- Mapeos por entidad (fila de Supabase <-> objeto de la app) ----------
