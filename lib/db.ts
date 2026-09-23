@@ -8,7 +8,7 @@ export type Currency = 'C$' | 'US$';
 export type PaymentMethod = string;
 export type Payment = { id: string; date: string; amount: number; note?: string; method?: PaymentMethod };
 export type Sale = { id: string; date: string; client: string; description: string; amount: number; currency?: Currency; enteredAmount?: number; status: string; paidAmount?: number; payments?: Payment[]; paymentMethod?: PaymentMethod };
-export type Expense = { id: string; date: string; category: string; description: string; amount: number; currency?: Currency; enteredAmount?: number };
+export type Expense = { id: string; date: string; category: string; description: string; amount: number; currency?: Currency; enteredAmount?: number; paymentChannel?: 'Efectivo'|'BAC'; sourceAccountId?: string; sourceAccountName?: string };
 export type Account = { id: string; name: string; currency: Currency; balance: number; updated: string };
 export type InventoryItem = { id: string; name: string; category: string; talla?: string; color?: string; qty: number; unitValue: number; currency?: Currency; enteredUnitValue?: number; note?: string };
 export type InventoryClose = { id: string; month: string; date: string; items: InventoryItem[]; total: number; notes: string };
@@ -264,10 +264,10 @@ function saleToRow(businessId: string, rate: number, s: Sale) {
 async function loadExpenses(businessId: string): Promise<Expense[]> {
   const { data, error } = await supabase.from('expenses').select('*').eq('business_id', businessId).order('expense_date', { ascending: true });
   if (error) throw error;
-  return (data || []).map((r: any) => ({ id: r.id, date: dateOnly(r.expense_date), category: r.category || 'Operativo', description: r.description || '', amount: Number(r.amount) || 0, currency: fromDbCurrency(r.currency), enteredAmount: r.entered_amount != null ? Number(r.entered_amount) : undefined }));
+  return (data || []).map((r: any) => ({ id: r.id, date: dateOnly(r.expense_date), category: r.category || 'Operativo', description: r.description || '', amount: Number(r.amount) || 0, currency: fromDbCurrency(r.currency), enteredAmount: r.entered_amount != null ? Number(r.entered_amount) : undefined, paymentChannel: r.payment_channel || undefined, sourceAccountId: r.source_account_id || undefined, sourceAccountName: r.source_account_name || undefined }));
 }
 function expenseToRow(businessId: string, rate: number, e: Expense) {
-  return { id: e.id, business_id: businessId, expense_date: e.date, category: e.category, description: e.description, amount: e.amount, currency: toDbCurrency(e.currency), exchange_rate: rate, entered_amount: e.enteredAmount ?? null };
+  return { id: e.id, business_id: businessId, expense_date: e.date, category: e.category, description: e.description, amount: e.amount, currency: toDbCurrency(e.currency), exchange_rate: rate, entered_amount: e.enteredAmount ?? null, payment_channel: e.paymentChannel || null, source_account_id: e.sourceAccountId || null, source_account_name: e.sourceAccountName || null };
 }
 
 async function loadAccounts(businessId: string): Promise<Account[]> {

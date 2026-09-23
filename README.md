@@ -273,3 +273,7 @@ No requiere ninguna migración nueva.
 - Revisé toda la página buscando encabezados que quedaran en minúscula por error de estilo: los nombres de columnas de las tablas, los rótulos como "VALOR REAL"/"CAPITAL Y RESULTADO" y las etiquetas pequeñas (RESUMEN EJECUTIVO, CENTRO FINANCIERO, etc.) ya estaban en mayúscula desde antes, así que no se tocaron. Los campos de formulario (Fecha, Cliente, Categoría, etc.) se dejaron en minúscula/normal a propósito — esos son etiquetas de captura, no encabezados de sección.
 
 No se perdió ningún dato existente ni cambió ninguna función, solo la apariencia.
+
+
+## v3.35.0 — Gastos conectados a Banco y Efectivo
+Los gastos pueden pagarse desde Efectivo o BAC, en C$ o US$, y descuentan automáticamente el saldo de la cuenta seleccionada. Editar revierte/aplica la diferencia y borrar restaura el saldo. Incluye resumen separado por origen y moneda. Requiere migración 015.
