@@ -20,6 +20,7 @@ const money=(n:number,c:'C$'|'US$'='C$')=>`${c}${new Intl.NumberFormat('en-US',{
 const dual=(nio:number,rate:number)=>`${money(nio,'C$')} · ${money(rate>0?nio/rate:0,'US$')}`;
 const toNio=(amount:number,currency:'C$'|'US$',rate:number)=>currency==='US$'?amount*rate:amount;
 const fromNio=(nio:number,currency:'C$'|'US$'|undefined,rate:number)=>currency==='US$'?(rate>0?nio/rate:0):nio;
+const round=(n:number)=>Math.round((Number(n)+Number.EPSILON)*100)/100;
 
 export default function Home(){
  const [businessId,setBusinessId]=useState<string|null>(null);
