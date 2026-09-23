@@ -16,7 +16,7 @@ export type InventoryClose = { id: string; month: string; date: string; items: I
 export type DebtPayment = { id: string; accountId: string; accountName: string; currency: Currency; amount: number; equivalentC: number; note: string; debtId?: string; debtDescription?: string };
 export type Debt = { id: string; description: string; totalAmount: number; currency?: Currency; enteredTotal?: number; affectsPercent: boolean; createdAt: string };
 export type DebtPaymentRecord = { id: string; debtId: string; month?: string; accountId?: string; accountName?: string; currency: Currency; amount: number; equivalentC: number; note?: string; at: string };
-export type AccountBalanceEntry = { id: string; accountId: string; accountName: string; currency: Currency; previousBalance: number; newBalance: number; changedBy?: string; at: string };
+export type AccountBalanceEntry = { id: string; accountId: string; accountName: string; currency: Currency; previousBalance: number; newBalance: number; changedBy?: string; description?: string; sourceType?: string; sourceId?: string; transactionDate?: string; at: string };
 export type MonthClose = { id: string; month: string; closedAt: string; rate: number; inventoryC: number; accounts: { name: string; currency: Currency; balance: number; equivalentC: number }[]; bankCashC: number; expensesC: number; salesC: number; currentValueC: number; baseC: number; resultC: number; notes: string; openingC?: number; debtPaymentsC?: number; carryForwardC?: number; debtNotes?: string; preCloseC?: number; debtPaymentDetails?: DebtPayment[] };
 export type Quote = { id: string; date: string; client: string; description: string; amount: number; currency?: Currency; enteredAmount?: number; status: string };
 export type InitialBase = { confirmed: boolean; baseUSD: number; baseC: number; confirmedAt?: string };
@@ -263,7 +263,7 @@ async function loadSales(businessId: string): Promise<Sale[]> {
     id: r.id, date: dateOnly(r.sale_date), client: r.client || '', description: r.description || '',
     amount: Number(r.amount) || 0, currency: fromDbCurrency(r.currency), enteredAmount: r.entered_amount != null ? Number(r.entered_amount) : undefined,
     paymentMethod: r.payment_method || undefined, inventoryItemId:r.inventory_item_id||undefined, productCode:r.product_code||undefined, productName:r.product_name||undefined, productCategory:r.product_category||undefined, talla:r.talla||undefined, color:r.color||undefined, quantity:r.quantity!=null?Number(r.quantity):undefined, lineItems:Array.isArray(r.line_items)?r.line_items:undefined, status: r.status || 'Pendiente', paidAmount: Number(r.paid_amount) || 0,
-    payments: (r.sale_payments || []).map((p: any) => ({ id: p.id, date: dateOnly(p.payment_date), amount: Number(p.amount) || 0, note: p.note || undefined, method: p.payment_method || undefined, accountId: p.account_id || undefined, accountName: p.account_name || undefined }))
+    payments: (r.sale_payments || []).map((p: any) => ({ id: p.id, date: dateOnly(p.payment_date), amount: Number(p.amount) || 0, note: p.note || undefined, method: p.payment_method || undefined, paymentChannel: p.payment_method || undefined, accountId: p.account_id || undefined, accountName: p.account_name || undefined }))
       .sort((a: Payment, b: Payment) => a.date.localeCompare(b.date))
   }));
 }
@@ -292,17 +292,18 @@ function accountToRow(businessId: string, a: Account) {
 
 // Historial de saldos de "Banco y Efectivo": cada vez que se actualiza el
 // saldo de una cuenta queda anotado el saldo anterior y el nuevo.
-export async function addAccountBalanceHistoryRemote(businessId: string, entry: { id: string; accountId: string; accountName: string; currency: Currency; previousBalance: number; newBalance: number; changedBy?: string }) {
+export async function addAccountBalanceHistoryRemote(businessId: string, entry: { id: string; accountId: string; accountName: string; currency: Currency; previousBalance: number; newBalance: number; changedBy?: string; description?: string; sourceType?: string; sourceId?: string; transactionDate?: string }) {
   const { error } = await supabase.from('account_balance_history').insert({
     id: entry.id, business_id: businessId, account_id: entry.accountId, account_name: entry.accountName,
-    currency: toDbCurrency(entry.currency), previous_balance: entry.previousBalance, new_balance: entry.newBalance, changed_by: entry.changedBy || null
+    currency: toDbCurrency(entry.currency), previous_balance: entry.previousBalance, new_balance: entry.newBalance, changed_by: entry.changedBy || null,
+    description: entry.description || null, source_type: entry.sourceType || null, source_id: entry.sourceId || null, transaction_date: entry.transactionDate || null
   });
   if (error) throw error;
 }
 export async function loadAccountBalanceHistory(businessId: string): Promise<AccountBalanceEntry[]> {
   const { data, error } = await supabase.from('account_balance_history').select('*').eq('business_id', businessId).order('created_at', { ascending: false });
   if (error) throw error;
-  return (data || []).map((r: any) => ({ id: r.id, accountId: r.account_id, accountName: r.account_name || '', currency: fromDbCurrency(r.currency), previousBalance: Number(r.previous_balance) || 0, newBalance: Number(r.new_balance) || 0, changedBy: r.changed_by || undefined, at: r.created_at }));
+  return (data || []).map((r: any) => ({ id: r.id, accountId: r.account_id, accountName: r.account_name || '', currency: fromDbCurrency(r.currency), previousBalance: Number(r.previous_balance) || 0, newBalance: Number(r.new_balance) || 0, changedBy: r.changed_by || undefined, description: r.description || undefined, sourceType: r.source_type || undefined, sourceId: r.source_id || undefined, transactionDate: dateOnly(r.transaction_date) || undefined, at: r.created_at }));
 }
 export async function removeAccountBalanceHistoryRemote(id: string) {
   const { error } = await supabase.from('account_balance_history').delete().eq('id', id);
@@ -508,7 +509,16 @@ function useCloudCollection<T extends { id: string }>(
     });
   };
 
-  return [items, setValue, ready] as const;
+  const reload = async () => {
+    if (!businessId) return [] as T[];
+    const rows = await load(businessId);
+    prevRef.current = rows;
+    setItems(rows);
+    setReady(true);
+    return rows;
+  };
+
+  return [items, setValue, ready, reload] as const;
 }
 
 export function useSalesCloud(businessId: string | null, rate: number, logInfo?: LogInfo) {
