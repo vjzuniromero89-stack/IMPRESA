@@ -19,11 +19,25 @@ alter table public.expenses add column if not exists account_currency text;
 update public.sale_payments p
 set exchange_rate=coalesce(p.exchange_rate,s.exchange_rate,37),
     sale_currency=coalesce(p.sale_currency,s.currency),
-    sale_amount=coalesce(p.sale_amount,case when s.currency='USD' then p.amount/nullif(coalesce(p.exchange_rate,s.exchange_rate,37),0) else p.amount end),
-    account_currency=coalesce(p.account_currency,a.currency),
-    account_amount=coalesce(p.account_amount,case when a.currency='USD' then p.amount/nullif(coalesce(p.exchange_rate,s.exchange_rate,37),0) else p.amount end)
+    sale_amount=coalesce(
+      p.sale_amount,
+      case when s.currency='USD'
+        then p.amount/nullif(coalesce(p.exchange_rate,s.exchange_rate,37),0)
+        else p.amount
+      end
+    ),
+    account_currency=coalesce(
+      p.account_currency,
+      (select a.currency from public.financial_accounts a where a.id=p.account_id)
+    ),
+    account_amount=coalesce(
+      p.account_amount,
+      case when (select a.currency from public.financial_accounts a where a.id=p.account_id)='USD'
+        then p.amount/nullif(coalesce(p.exchange_rate,s.exchange_rate,37),0)
+        else p.amount
+      end
+    )
 from public.sales s
-left join public.financial_accounts a on a.id=p.account_id
 where s.id=p.sale_id;
 
 -- Completar gastos antiguos sin cambiar saldos.
