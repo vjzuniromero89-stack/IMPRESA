@@ -11,7 +11,7 @@ import {uid,ensureBusiness,fetchBusinessSettings,updateRateRemote,confirmInitial
 
 const CURRENT_USER_KEY='impresa_current_user';
 
-const tabs=['Dashboard','Ventas','Gastos','Inventario','Banco y Efectivo','Contabilidad','Deudas','Cierre de mes','Cotizaciones','Usuarios','Reportes','Configuración'];
+const tabs=['Dashboard','Ventas','Gastos','Inventario','Banco y Efectivo','Control de dinero','Contabilidad','Deudas','Cierre de mes','Cotizaciones','Usuarios','Reportes','Configuración'];
 const today=()=>new Date().toISOString().slice(0,10);
 const monthNow=()=>new Date().toISOString().slice(0,7);
 // Muestra el mensaje del error si trae uno útil (por ejemplo, avisando qué migración de Supabase falta correr); si no, el mensaje genérico.
@@ -160,7 +160,7 @@ export default function Home(){
  {tab==='Ventas'&&<div className="subTabs" role="tablist" aria-label="Vista de Ventas">{(['Ventas','Ventas Transferencia Efectivo'] as const).map(v=><button key={v} type="button" role="tab" aria-selected={ventasView===v} className={ventasView===v?'active':''} onClick={()=>setVentasView(v)}>{v}</button>)}</div>}
  {tab==='Inventario'&&<div className="subTabs" role="tablist" aria-label="Vista de Inventario">{(['Inventario','Detalle de Inventario'] as const).map(v=><button key={v} type="button" role="tab" aria-selected={inventarioView===v} className={inventarioView===v?'active':''} onClick={()=>setInventarioView(v)}>{v}</button>)}</div>}
  <div className="actions"><label className="month"><span>Mes</span><input type="month" value={month} onChange={e=>setMonth(e.target.value)}/></label><button className="btn" onClick={()=>setTab('Gastos')}>+ Gasto</button><button className="btn primary" onClick={()=>{setTab('Ventas');setVentasView('Ventas')}}>+ Venta</button></div></header>
- {tab==='Dashboard'?<Dashboard {...props}/>:tab==='Ventas'?(ventasView==='Ventas'?<Sales {...props}/>:<SalesMethods {...props}/>):tab==='Gastos'?<Expenses {...props}/>:tab==='Inventario'?(inventarioView==='Inventario'?<Inventory {...props}/>:<InventoryDetail {...props}/>):tab==='Banco y Efectivo'?<Accounts {...props}/>:tab==='Contabilidad'?<Accounting {...props}/>:tab==='Cierre de mes'?<MonthClosing {...props}/>:tab==='Deudas'?<Debts {...props}/>:tab==='Cotizaciones'?<Quotes {...props}/>:tab==='Usuarios'?<Users businessId={businessId} currentUser={currentUser}/>:tab==='Reportes'?<Reports {...props}/>:<Settings {...props}/>}
+ {tab==='Dashboard'?<Dashboard {...props}/>:tab==='Ventas'?(ventasView==='Ventas'?<Sales {...props}/>:<SalesMethods {...props}/>):tab==='Gastos'?<Expenses {...props}/>:tab==='Inventario'?(inventarioView==='Inventario'?<Inventory {...props}/>:<InventoryDetail {...props}/>):tab==='Banco y Efectivo'?<Accounts {...props}/>:tab==='Control de dinero'?<MoneyControl {...props}/>:tab==='Contabilidad'?<Accounting {...props}/>:tab==='Cierre de mes'?<MonthClosing {...props}/>:tab==='Deudas'?<Debts {...props}/>:tab==='Cotizaciones'?<Quotes {...props}/>:tab==='Usuarios'?<Users businessId={businessId} currentUser={currentUser}/>:tab==='Reportes'?<Reports {...props}/>:<Settings {...props}/>}
  </main></div>
 }
 function Dashboard({sales,expenses,accounts,closes,monthCloses,month,rate}:any){
@@ -176,6 +176,25 @@ function Dashboard({sales,expenses,accounts,closes,monthCloses,month,rate}:any){
  <div className="dashboardGrid"><Panel title="Evolución del valor del negocio"><MiniLine data={trend} moneyMode/><div className="chartLegend"><span>Últimos cierres mensuales</span><b>{trend.length?dual(trend[trend.length-1].value,rate):'Sin cierres'}</b></div></Panel><Panel title="Distribución de gastos"><MiniBars data={expenseCats} rate={rate}/>{!expenseCats.length&&<Empty text="No hay gastos registrados este mes."/>}</Panel></div>
  <div className="dashboardGrid"><Panel title="Liquidez por cuenta">{accounts.map((x:Account)=>{const c=x.currency==='US$'?x.balance*rate:x.balance;return <div className="accountRow" key={x.id}><div><b>{x.name}</b><small>{x.currency} · actualizado {x.updated}</small></div><strong>{dual(c,rate)}</strong></div>})}</Panel><Panel title="Control del período"><div className="healthList"><Health label="Inventario mensual" ok={!!last} text={last?`Último cierre: ${last.month}`:'Pendiente de registrar'}/><Health label="Cierre contable" ok={monthCloses.some((x:MonthClose)=>x.month===month)} text={monthCloses.some((x:MonthClose)=>x.month===month)?'Mes cerrado':'Mes abierto'}/><Health label="Tipo de cambio" ok={rate>0} text={`C$${rate.toFixed(2)} = US$1`}/></div></Panel></div></>
 }
+function MoneyControl({sales,expenses,accounts,month,rate,monthCloses}:any){
+ const currentC=(accounts as Account[]).reduce((n,a)=>n+toNio(Number(a.balance)||0,a.currency,rate),0);
+ const monthSales=(sales as Sale[]).filter(s=>s.date.startsWith(month));
+ const monthExpenses=(expenses as Expense[]).filter(e=>e.date.startsWith(month));
+ const collectedC=monthSales.reduce((n,s)=>n+Math.min(Number(s.amount)||0,Number(s.paidAmount??(s.status==='Pagada'?s.amount:0))||0),0);
+ const expensesC=monthExpenses.reduce((n,e)=>n+(Number(e.amount)||0),0);
+ const prior=[...(monthCloses as MonthClose[])].filter(c=>c.month<month).sort((a,b)=>b.month.localeCompare(a.month))[0];
+ const storageKey=`impresa_money_opening_${month}`;
+ const suggested=prior?Number(prior.bankCashC)||0:Math.max(0,currentC-collectedC+expensesC);
+ const [opening,setOpening]=useState<number>(suggested);
+ const [loaded,setLoaded]=useState(false);
+ useEffect(()=>{try{const raw=localStorage.getItem(storageKey);setOpening(raw===null?suggested:Number(raw)||0)}catch{setOpening(suggested)}setLoaded(true)},[storageKey]);
+ const saveOpening=()=>{const x=prompt('Saldo inicial del mes en córdobas (suma de bancos + efectivo al comenzar el mes):',String(opening.toFixed(2)));if(x===null||!Number.isFinite(Number(x))||Number(x)<0)return;const v=Number(x);setOpening(v);try{localStorage.setItem(storageKey,String(v))}catch{}};
+ const expectedC=opening+collectedC-expensesC; const differenceC=currentC-expectedC; const ok=Math.abs(differenceC)<0.01;
+ const movements=[...monthSales.flatMap(s=>{const ps=s.payments?.length?s.payments:((s.paidAmount||0)>0?[{id:s.id,date:s.date,amount:s.paidAmount||0,method:s.paymentMethod,note:'Cobro'}]:[]);return ps.filter(p=>p.date.startsWith(month)).map(p=>({date:p.date,type:'Entrada',description:`Venta · ${s.client}${p.note?' · '+p.note:''}`,amount:Number(p.amount)||0}))}),...monthExpenses.map(e=>({date:e.date,type:'Salida',description:`${e.category} · ${e.description}`,amount:Number(e.amount)||0}))].sort((a,b)=>b.date.localeCompare(a.date));
+ return <>{loaded&&<div className="totalCircleWrap"><div className="totalCircle moneyControlCircle"><div className="circleInner"><span>DINERO REAL HOY</span><strong>{money(currentC,'C$')}</strong><b>{money(rate>0?currentC/rate:0,'US$')}</b><small>{accounts.length} cuentas sumadas</small></div></div><div className="circleBreakdown"><h3>Control del flujo del dinero</h3><div><span>Saldo inicial del mes</span><b>{dual(opening,rate)}</b></div><div><span>+ Ventas realmente cobradas</span><b>{dual(collectedC,rate)}</b></div><div><span>− Gastos pagados</span><b>{dual(expensesC,rate)}</b></div><div><span>= Dinero esperado</span><b>{dual(expectedC,rate)}</b></div><div><span>Dinero real en Banco y Efectivo</span><b>{dual(currentC,rate)}</b></div><div className={ok?'moneyMatch':'moneyMismatch'}><span>Diferencia</span><b>{differenceC>=0?'+':''}{dual(differenceC,rate)}</b></div><div className="circleFormula">Las transferencias entre tus propias cuentas no cambian el total: solo mueven dinero de un lugar a otro. El inventario no entra en este cálculo.</div><button className="small" onClick={saveOpening}>Ajustar saldo inicial</button></div></div>}
+ <Panel title={`Flujo de dinero · ${month}`}><div className="kpis"><Kpi icon="↗" t="Entradas cobradas" v={dual(collectedC,rate)} sub={`${monthSales.length} ventas del período`}/><Kpi icon="↘" t="Salidas pagadas" v={dual(expensesC,rate)} sub={`${monthExpenses.length} gastos del período`}/><Kpi icon="=" t="Dinero esperado" v={dual(expectedC,rate)} sub="Inicial + cobros − gastos"}/></div><Table heads={['Fecha','Tipo','Descripción','Entrada','Salida']} rows={movements.map(m=>[m.date,m.type,m.description,m.type==='Entrada'?dual(m.amount,rate):'—',m.type==='Salida'?dual(m.amount,rate):'—'])}/>{!movements.length&&<Empty text="No hay entradas ni salidas registradas en este mes."/>}</Panel></>;
+}
+
 function Accounts({accounts,setAccounts,rate,businessId,logCtx,accountHistory,reloadAccountHistory}:any){
  const [f,setF]=useState({name:'',currency:'C$'});
  const [historyAccountId,setHistoryAccountId]=useState<string|null>(null);
