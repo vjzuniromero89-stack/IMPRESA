@@ -7,10 +7,10 @@ import {changedSaleFields, saleSaveError, businessColumnSaveError, inventoryItem
 export type Currency = 'C$' | 'US$';
 export type PaymentMethod = string;
 export type Payment = { id: string; date: string; amount: number; note?: string; method?: PaymentMethod };
-export type Sale = { id: string; date: string; client: string; description: string; amount: number; currency?: Currency; enteredAmount?: number; status: string; paidAmount?: number; payments?: Payment[]; paymentMethod?: PaymentMethod };
-export type Expense = { id: string; date: string; category: string; description: string; amount: number; currency?: Currency; enteredAmount?: number; paymentChannel?: 'Efectivo'|'BAC'; sourceAccountId?: string; sourceAccountName?: string };
+export type Sale = { id: string; date: string; client: string; description: string; amount: number; currency?: Currency; enteredAmount?: number; status: string; paidAmount?: number; payments?: Payment[]; paymentMethod?: PaymentMethod; inventoryItemId?: string; productCode?: string; productName?: string; productCategory?: string; talla?: string; color?: string; quantity?: number };
+export type Expense = { id: string; date: string; category: string; description: string; amount: number; currency?: Currency; enteredAmount?: number; paymentChannel?: string; sourceAccountId?: string; sourceAccountName?: string };
 export type Account = { id: string; name: string; currency: Currency; balance: number; updated: string };
-export type InventoryItem = { id: string; name: string; category: string; talla?: string; color?: string; qty: number; unitValue: number; currency?: Currency; enteredUnitValue?: number; note?: string };
+export type InventoryItem = { id: string; sku?: string; name: string; category: string; talla?: string; color?: string; qty: number; unitValue: number; currency?: Currency; enteredUnitValue?: number; note?: string };
 export type InventoryClose = { id: string; month: string; date: string; items: InventoryItem[]; total: number; notes: string };
 export type DebtPayment = { id: string; accountId: string; accountName: string; currency: Currency; amount: number; equivalentC: number; note: string; debtId?: string; debtDescription?: string };
 export type Debt = { id: string; description: string; totalAmount: number; currency?: Currency; enteredTotal?: number; affectsPercent: boolean; createdAt: string };
@@ -152,8 +152,9 @@ const DEFAULT_INVENTORY_CATEGORIES = ['Camisas', 'Hilos', 'Tintas', 'Vinil', 'Su
 const DEFAULT_PAYMENT_METHODS = ['Transferencia', 'Efectivo'];
 const DEFAULT_INVENTORY_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '2', '4', '6', '8', '10', '12', '14', '16'];
 const DEFAULT_EXPENSE_CATEGORIES = ['Materiales', 'Operativo', 'Servicios', 'Transporte', 'Nómina', 'Publicidad', 'Equipos', 'Otro'];
+const DEFAULT_EXPENSE_PAYMENT_METHODS = ['Efectivo','Transferencia / BAC'];
 
-export async function fetchBusinessSettings(businessId: string): Promise<{ rate: number; initialBase: InitialBase; inventoryCategories: string[]; paymentMethods: string[]; inventorySizes: string[]; expenseCategories: string[]; inventoryBaselineMonth: string | null }> {
+export async function fetchBusinessSettings(businessId: string): Promise<{ rate: number; initialBase: InitialBase; inventoryCategories: string[]; paymentMethods: string[]; inventorySizes: string[]; expenseCategories: string[]; expensePaymentMethods: string[]; inventoryBaselineMonth: string | null }> {
   const { data, error } = await supabase.from('businesses').select('*').eq('id', businessId).single();
   if (error) throw error;
   return {
@@ -168,6 +169,7 @@ export async function fetchBusinessSettings(businessId: string): Promise<{ rate:
     paymentMethods: (Array.isArray(data.payment_methods) && data.payment_methods.length) ? data.payment_methods : DEFAULT_PAYMENT_METHODS,
     inventorySizes: (Array.isArray(data.inventory_sizes) && data.inventory_sizes.length) ? data.inventory_sizes : DEFAULT_INVENTORY_SIZES,
     expenseCategories: (Array.isArray(data.expense_categories) && data.expense_categories.length) ? data.expense_categories : DEFAULT_EXPENSE_CATEGORIES,
+    expensePaymentMethods: (Array.isArray(data.expense_payment_methods) && data.expense_payment_methods.length) ? data.expense_payment_methods : DEFAULT_EXPENSE_PAYMENT_METHODS,
     inventoryBaselineMonth: data.inventory_baseline_month || null
   };
 }
@@ -194,9 +196,10 @@ const BUSINESS_LIST_MIGRATIONS: Record<string, string> = {
   inventory_categories: '009_custom_categories_and_payment_methods.sql',
   payment_methods: '009_custom_categories_and_payment_methods.sql',
   inventory_sizes: '012_inventory_sizes.sql',
-  expense_categories: '014_expense_categories.sql'
+  expense_categories: '014_expense_categories.sql',
+  expense_payment_methods: '016_inventory_sales_stock_and_lists.sql'
 };
-async function appendBusinessListRemote(businessId: string, column: 'inventory_categories' | 'payment_methods' | 'inventory_sizes' | 'expense_categories', fallback: string[], value: string): Promise<string[]> {
+async function appendBusinessListRemote(businessId: string, column: 'inventory_categories' | 'payment_methods' | 'inventory_sizes' | 'expense_categories' | 'expense_payment_methods', fallback: string[], value: string): Promise<string[]> {
   const name = (value || '').trim();
   if (!name) throw new Error('Escribe un nombre antes de guardar.');
   const { data, error } = await supabase.from('businesses').select(column).eq('id', businessId).single();
@@ -220,10 +223,13 @@ export async function addInventorySizeRemote(businessId: string, size: string): 
 export async function addExpenseCategoryRemote(businessId: string, category: string): Promise<string[]> {
   return appendBusinessListRemote(businessId, 'expense_categories', DEFAULT_EXPENSE_CATEGORIES, category);
 }
+export async function addExpensePaymentMethodRemote(businessId: string, method: string): Promise<string[]> {
+  return appendBusinessListRemote(businessId, 'expense_payment_methods', DEFAULT_EXPENSE_PAYMENT_METHODS, method);
+}
 // Quitar un valor de una de estas listas guardadas. Lo que ya está usado en
 // productos/ventas anteriores conserva su dato tal cual — esto solo lo quita
 // de la lista para que no se vuelva a elegir en registros nuevos.
-async function removeBusinessListItemRemote(businessId: string, column: 'inventory_categories' | 'payment_methods' | 'inventory_sizes' | 'expense_categories', fallback: string[], value: string): Promise<string[]> {
+async function removeBusinessListItemRemote(businessId: string, column: 'inventory_categories' | 'payment_methods' | 'inventory_sizes' | 'expense_categories' | 'expense_payment_methods', fallback: string[], value: string): Promise<string[]> {
   const { data, error } = await supabase.from('businesses').select(column).eq('id', businessId).single();
   if (error) throw businessColumnSaveError(error, column, BUSINESS_LIST_MIGRATIONS[column]);
   const current: string[] = (Array.isArray((data as any)?.[column]) && (data as any)[column].length) ? (data as any)[column] : fallback;
@@ -244,6 +250,9 @@ export async function removeInventorySizeRemote(businessId: string, size: string
 export async function removeExpenseCategoryRemote(businessId: string, category: string): Promise<string[]> {
   return removeBusinessListItemRemote(businessId, 'expense_categories', DEFAULT_EXPENSE_CATEGORIES, category);
 }
+export async function removeExpensePaymentMethodRemote(businessId: string, method: string): Promise<string[]> {
+  return removeBusinessListItemRemote(businessId, 'expense_payment_methods', DEFAULT_EXPENSE_PAYMENT_METHODS, method);
+}
 
 // ---------- Mapeos por entidad (fila de Supabase <-> objeto de la app) ----------
 async function loadSales(businessId: string): Promise<Sale[]> {
@@ -252,13 +261,13 @@ async function loadSales(businessId: string): Promise<Sale[]> {
   return (data || []).map((r: any) => ({
     id: r.id, date: dateOnly(r.sale_date), client: r.client || '', description: r.description || '',
     amount: Number(r.amount) || 0, currency: fromDbCurrency(r.currency), enteredAmount: r.entered_amount != null ? Number(r.entered_amount) : undefined,
-    paymentMethod: r.payment_method || undefined, status: r.status || 'Pendiente', paidAmount: Number(r.paid_amount) || 0,
+    paymentMethod: r.payment_method || undefined, inventoryItemId:r.inventory_item_id||undefined, productCode:r.product_code||undefined, productName:r.product_name||undefined, productCategory:r.product_category||undefined, talla:r.talla||undefined, color:r.color||undefined, quantity:r.quantity!=null?Number(r.quantity):undefined, status: r.status || 'Pendiente', paidAmount: Number(r.paid_amount) || 0,
     payments: (r.sale_payments || []).map((p: any) => ({ id: p.id, date: dateOnly(p.payment_date), amount: Number(p.amount) || 0, note: p.note || undefined, method: p.payment_method || undefined }))
       .sort((a: Payment, b: Payment) => a.date.localeCompare(b.date))
   }));
 }
 function saleToRow(businessId: string, rate: number, s: Sale) {
-  return { id: s.id, business_id: businessId, sale_date: s.date, client: s.client, description: s.description, amount: s.amount, currency: toDbCurrency(s.currency), exchange_rate: rate, entered_amount: s.enteredAmount ?? null, status: s.status, payment_method: s.paymentMethod || null, paid_amount: s.paidAmount ?? 0 };
+  return { id: s.id, business_id: businessId, sale_date: s.date, client: s.client, description: s.description, amount: s.amount, currency: toDbCurrency(s.currency), exchange_rate: rate, entered_amount: s.enteredAmount ?? null, status: s.status, payment_method: s.paymentMethod || null, paid_amount: s.paidAmount ?? 0, inventory_item_id:s.inventoryItemId||null, product_code:s.productCode||null, product_name:s.productName||null, product_category:s.productCategory||null, talla:s.talla||null, color:s.color||null, quantity:s.quantity??null };
 }
 
 async function loadExpenses(businessId: string): Promise<Expense[]> {
@@ -377,13 +386,13 @@ export async function loadInventory(businessId: string): Promise<InventoryClose[
   const byMonth: Record<string, any[]> = {};
   (items || []).forEach((r: any) => { (byMonth[r.month] ||= []).push(r); });
   return Object.entries(byMonth).map(([month, rows]) => {
-    const mapped: InventoryItem[] = rows.map((r: any) => ({ id: r.id, name: r.product_name, category: r.category || '', talla: r.talla || '', color: r.color || '', qty: Number(r.quantity) || 0, unitValue: Number(r.unit_value_cordobas) || 0, currency: fromDbCurrency(r.currency), enteredUnitValue: r.entered_unit_value != null ? Number(r.entered_unit_value) : undefined, note: r.note || '' }));
+    const mapped: InventoryItem[] = rows.map((r: any) => ({ id: r.id, sku:r.sku||'', name: r.product_name, category: r.category || '', talla: r.talla || '', color: r.color || '', qty: Number(r.quantity) || 0, unitValue: Number(r.unit_value_cordobas) || 0, currency: fromDbCurrency(r.currency), enteredUnitValue: r.entered_unit_value != null ? Number(r.entered_unit_value) : undefined, note: r.note || '' }));
     const total = mapped.reduce((a, x) => a + x.qty * x.unitValue, 0);
     return { id: month, month, date: month, items: mapped, total, notes: notesByMonth[month] || '' };
   });
 }
 function inventoryItemFields(item: InventoryItem) {
-  return { product_name: item.name, category: item.category, talla: item.talla || null, color: item.color || null, quantity: item.qty, unit_value_cordobas: item.unitValue, currency: toDbCurrency(item.currency), entered_unit_value: item.enteredUnitValue ?? null, note: item.note || null };
+  return { sku:item.sku||null, product_name: item.name, category: item.category, talla: item.talla || null, color: item.color || null, quantity: item.qty, unit_value_cordobas: item.unitValue, currency: toDbCurrency(item.currency), entered_unit_value: item.enteredUnitValue ?? null, note: item.note || null };
 }
 function inventoryItemToRow(businessId: string, month: string, item: InventoryItem) {
   return { id: item.id, business_id: businessId, month, ...inventoryItemFields(item) };

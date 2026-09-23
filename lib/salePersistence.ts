@@ -12,6 +12,7 @@ export function saleSaveError(error: {code?:string;message?:string}) {
  if (['PGRST204','42703'].includes(error.code||'') && /payment_method/i.test(error.message||'')) {
   return new Error('Falta actualizar los campos de método de pago en Supabase. Ejecuta el SQL incluido en supabase/migrations/20260921135236_sales_payment_methods.sql y vuelve a guardar. Tus abonos no se han modificado.');
  }
+ if (['PGRST204','42703'].includes(error.code||'') && /inventory_item_id|product_code|product_name|product_category|quantity|talla|color/i.test(error.message||'')) return new Error('Falta correr migration/016_inventory_sales_stock_and_lists.sql en Supabase. Ejecútalo y vuelve a guardar la venta.');
  return error;
 }
 // Cuando falta una columna en Supabase (porque todavía no se corrió una
@@ -26,6 +27,7 @@ export function businessColumnSaveError(error: {code?:string;message?:string}, c
 }
 export function inventoryItemSaveError(error: {code?:string;message?:string}) {
  if (!['PGRST204','42703'].includes(error.code||'')) return error;
+ if (/\bsku\b/i.test(error.message||'')) return new Error('Falta correr migration/016_inventory_sales_stock_and_lists.sql en Supabase. Ejecútalo antes de guardar códigos de inventario.');
  if (/\bnote\b/i.test(error.message||'')) return new Error('Falta correr migration/011_inventory_note.sql en Supabase. Ejecútalo en el SQL Editor de Supabase y vuelve a guardar.');
  if (/\btalla\b/i.test(error.message||'') || /\bcolor\b/i.test(error.message||'')) return new Error('Falta correr migration/010_inventory_talla_color.sql en Supabase. Ejecútalo en el SQL Editor de Supabase y vuelve a guardar.');
  return error;
