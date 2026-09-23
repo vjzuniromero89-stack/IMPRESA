@@ -7,7 +7,7 @@ import {changedSaleFields, saleSaveError, businessColumnSaveError, inventoryItem
 export type Currency = 'C$' | 'US$';
 export type PaymentMethod = string;
 export type Payment = { id: string; date: string; amount: number; note?: string; method?: PaymentMethod; accountId?: string; accountName?: string };
-export type SaleLine = { id:string; mode:'inventory'|'manual'; inventoryItemId?:string; productCode?:string; name:string; category?:string; talla?:string; color?:string; quantity:number; unitPrice:number };
+export type SaleLine = { id:string; mode:'inventory'|'manual'; inventoryItemId?:string; productCode?:string; name:string; category?:string; talla?:string; color?:string; quantity:number; unitCostC?:number; unitPrice:number };
 export type Sale = { id: string; date: string; client: string; description: string; amount: number; currency?: Currency; enteredAmount?: number; status: string; paidAmount?: number; payments?: Payment[]; paymentMethod?: PaymentMethod; inventoryItemId?: string; productCode?: string; productName?: string; productCategory?: string; talla?: string; color?: string; quantity?: number; lineItems?:SaleLine[] };
 export type Expense = { id: string; date: string; category: string; description: string; amount: number; currency?: Currency; enteredAmount?: number; paymentChannel?: string; sourceAccountId?: string; sourceAccountName?: string };
 export type Account = { id: string; name: string; currency: Currency; balance: number; updated: string };
