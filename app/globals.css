@@ -371,3 +371,13 @@ tr.importUnknownSize td{background:#fff8e6}
 
 /* Fila con menos cantidad ahora que en el Inventario Inicial (tabla "Inventario Inicial vs. Inventario Actual") */
 tr.invDeficit td{background:#fff0f0;color:#aa2936;font-weight:700}
+
+/* v3.37 - Totales circulares de Banco/Efectivo e Inventario */
+.totalCircleWrap{display:grid;grid-template-columns:minmax(250px,340px) minmax(280px,1fr);gap:22px;align-items:center;margin:0 0 24px;padding:22px;border:1px solid #c9daf5;border-top:4px solid #3478df;border-radius:22px;background:linear-gradient(135deg,#f7faff 0%,#edf5ff 100%)}
+.totalCircle{width:270px;aspect-ratio:1;border-radius:50%;display:grid;place-items:center;margin:auto;padding:18px;background:conic-gradient(#2f70da 0 72%,#43c5c7 72% 100%);box-shadow:0 12px 28px rgba(26,72,130,.16)}
+.totalCircle:before{content:"";grid-area:1/1;width:88%;height:88%;border-radius:50%;background:#fff;box-shadow:inset 0 0 0 1px #d8e4f5}
+.inventoryTotalCircle{background:conic-gradient(#16a085 0 68%,#3b82f6 68% 100%)}
+.circleInner{grid-area:1/1;z-index:1;text-align:center;display:flex;flex-direction:column;gap:5px;max-width:200px}
+.circleInner span{font-size:12px;font-weight:800;letter-spacing:.08em;color:#47617f}.circleInner strong{font-size:25px;color:#0d2f57}.circleInner b{font-size:18px;color:#2167c8}.circleInner small{font-size:12px;color:#71839b}
+.circleBreakdown{background:#fff;border:1px solid #d4e0f1;border-radius:18px;padding:18px}.circleBreakdown h3{margin:0 0 12px;color:#173e6b}.circleBreakdown>div:not(.circleFormula){display:flex;justify-content:space-between;gap:18px;padding:9px 0;border-bottom:1px solid #e7edf6}.circleBreakdown span{color:#536b87}.circleBreakdown b{color:#163d68;text-align:right}.circleFormula{margin-top:14px;padding:12px;border-radius:12px;background:#eaf2ff;color:#3f5f84;font-size:13px;line-height:1.45}
+@media(max-width:760px){.totalCircleWrap{grid-template-columns:1fr}.totalCircle{width:min(250px,78vw)}}
