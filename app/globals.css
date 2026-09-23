@@ -425,8 +425,9 @@ tr.salePaidRow>td{transition:background .2s ease}
 .accountStatementBalance small,.generalStatementTotal small{color:#6a7e95;font-weight:700}
 .accountStatementBalance strong,.generalStatementTotal strong{font-size:22px;color:#123e70}
 .generalStatementTotal b{font-size:14px;color:#2b68c7}
-.generalStatementBlock .tablewrap table td:nth-child(4){color:#087a60;font-weight:750}
-.generalStatementBlock .tablewrap table td:nth-child(5){color:#b42318;font-weight:750}
+.generalStatementBlock .tablewrap table td:nth-child(3){color:#087a60;font-weight:800}
+.generalStatementBlock .tablewrap table td:nth-child(4){color:#b42318;font-weight:800}
+.generalStatementBlock .tablewrap table td:nth-child(5){color:#123e70;font-weight:800}
 .accountStatementPage .tablewrap table td:nth-child(3){color:#087a60;font-weight:750}
 .accountStatementPage .tablewrap table td:nth-child(4){color:#b42318;font-weight:750}
 @media(max-width:820px){.accountStatementHead,.generalStatementHead{grid-template-columns:1fr}.accountStatementBalance,.generalStatementTotal{align-items:flex-start}.accountStatementHead .btn{width:100%}}
