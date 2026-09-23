@@ -6,10 +6,10 @@ import {changedSaleFields, saleSaveError, businessColumnSaveError, inventoryItem
 // ---------- Tipos (iguales a los que usaba la app con localStorage) ----------
 export type Currency = 'C$' | 'US$';
 export type PaymentMethod = string;
-export type Payment = { id: string; date: string; amount: number; note?: string; method?: PaymentMethod; paymentChannel?: 'Transferencia'|'Efectivo'; accountId?: string; accountName?: string };
+export type Payment = { id: string; date: string; amount: number; note?: string; method?: PaymentMethod; paymentChannel?: 'Transferencia'|'Efectivo'; accountId?: string; accountName?: string; exchangeRate?: number; saleAmount?: number; saleCurrency?: Currency; accountAmount?: number; accountCurrency?: Currency };
 export type SaleLine = { id:string; mode:'inventory'|'manual'; inventoryItemId?:string; productCode?:string; name:string; category?:string; talla?:string; color?:string; quantity:number; unitCostC?:number; unitPrice:number };
 export type Sale = { id: string; date: string; client: string; description: string; amount: number; currency?: Currency; enteredAmount?: number; status: string; paidAmount?: number; payments?: Payment[]; paymentMethod?: PaymentMethod; inventoryItemId?: string; productCode?: string; productName?: string; productCategory?: string; talla?: string; color?: string; quantity?: number; lineItems?:SaleLine[] };
-export type Expense = { id: string; date: string; category: string; description: string; amount: number; currency?: Currency; enteredAmount?: number; paymentChannel?: string; sourceAccountId?: string; sourceAccountName?: string };
+export type Expense = { id: string; date: string; category: string; description: string; amount: number; currency?: Currency; enteredAmount?: number; paymentChannel?: string; sourceAccountId?: string; sourceAccountName?: string; exchangeRate?: number; accountAmount?: number; accountCurrency?: Currency };
 export type Account = { id: string; name: string; currency: Currency; balance: number; updated: string };
 export type InventoryItem = { id: string; sku?: string; name: string; category: string; talla?: string; color?: string; qty: number; unitValue: number; currency?: Currency; enteredUnitValue?: number; note?: string };
 export type InventoryClose = { id: string; month: string; date: string; items: InventoryItem[]; total: number; notes: string };
@@ -263,7 +263,7 @@ async function loadSales(businessId: string): Promise<Sale[]> {
     id: r.id, date: dateOnly(r.sale_date), client: r.client || '', description: r.description || '',
     amount: Number(r.amount) || 0, currency: fromDbCurrency(r.currency), enteredAmount: r.entered_amount != null ? Number(r.entered_amount) : undefined,
     paymentMethod: r.payment_method || undefined, inventoryItemId:r.inventory_item_id||undefined, productCode:r.product_code||undefined, productName:r.product_name||undefined, productCategory:r.product_category||undefined, talla:r.talla||undefined, color:r.color||undefined, quantity:r.quantity!=null?Number(r.quantity):undefined, lineItems:Array.isArray(r.line_items)?r.line_items:undefined, status: r.status || 'Pendiente', paidAmount: Number(r.paid_amount) || 0,
-    payments: (r.sale_payments || []).map((p: any) => ({ id: p.id, date: dateOnly(p.payment_date), amount: Number(p.amount) || 0, note: p.note || undefined, method: p.payment_method || undefined, paymentChannel: p.payment_method || undefined, accountId: p.account_id || undefined, accountName: p.account_name || undefined }))
+    payments: (r.sale_payments || []).map((p: any) => { const pr=Number(p.exchange_rate)||Number(r.exchange_rate)||37; const saleCur=fromDbCurrency(p.sale_currency||r.currency); const acctCur=p.account_currency?fromDbCurrency(p.account_currency):undefined; const canonical=Number(p.amount)||0; return { id:p.id,date:dateOnly(p.payment_date),amount:canonical,note:p.note||undefined,method:p.payment_method||undefined,paymentChannel:p.payment_method||undefined,accountId:p.account_id||undefined,accountName:p.account_name||undefined,exchangeRate:pr,saleCurrency:saleCur,saleAmount:p.sale_amount!=null?Number(p.sale_amount):(saleCur==='US$'?canonical/pr:canonical),accountCurrency:acctCur,accountAmount:p.account_amount!=null?Number(p.account_amount):(acctCur==='US$'?canonical/pr:canonical) }; })
       .sort((a: Payment, b: Payment) => a.date.localeCompare(b.date))
   }));
 }
@@ -274,10 +274,10 @@ function saleToRow(businessId: string, rate: number, s: Sale) {
 async function loadExpenses(businessId: string): Promise<Expense[]> {
   const { data, error } = await supabase.from('expenses').select('*').eq('business_id', businessId).order('expense_date', { ascending: true });
   if (error) throw error;
-  return (data || []).map((r: any) => ({ id: r.id, date: dateOnly(r.expense_date), category: r.category || 'Operativo', description: r.description || '', amount: Number(r.amount) || 0, currency: fromDbCurrency(r.currency), enteredAmount: r.entered_amount != null ? Number(r.entered_amount) : undefined, paymentChannel: r.payment_channel || undefined, sourceAccountId: r.source_account_id || undefined, sourceAccountName: r.source_account_name || undefined }));
+  return (data || []).map((r:any)=>({id:r.id,date:dateOnly(r.expense_date),category:r.category||'Operativo',description:r.description||'',amount:Number(r.amount)||0,currency:fromDbCurrency(r.currency),enteredAmount:r.entered_amount!=null?Number(r.entered_amount):undefined,paymentChannel:r.payment_channel||undefined,sourceAccountId:r.source_account_id||undefined,sourceAccountName:r.source_account_name||undefined,exchangeRate:r.exchange_rate!=null?Number(r.exchange_rate):undefined,accountAmount:r.account_amount!=null?Number(r.account_amount):undefined,accountCurrency:r.account_currency?fromDbCurrency(r.account_currency):undefined}));
 }
 function expenseToRow(businessId: string, rate: number, e: Expense) {
-  return { id: e.id, business_id: businessId, expense_date: e.date, category: e.category, description: e.description, amount: e.amount, currency: toDbCurrency(e.currency), exchange_rate: rate, entered_amount: e.enteredAmount ?? null, payment_channel: e.paymentChannel || null, source_account_id: e.sourceAccountId || null, source_account_name: e.sourceAccountName || null };
+  return {id:e.id,business_id:businessId,expense_date:e.date,category:e.category,description:e.description,amount:e.amount,currency:toDbCurrency(e.currency),exchange_rate:e.exchangeRate||rate,entered_amount:e.enteredAmount??null,payment_channel:e.paymentChannel||null,source_account_id:e.sourceAccountId||null,source_account_name:e.sourceAccountName||null,account_amount:e.accountAmount??null,account_currency:e.accountCurrency?toDbCurrency(e.accountCurrency):null};
 }
 
 async function loadAccounts(businessId: string): Promise<Account[]> {
@@ -445,7 +445,7 @@ export async function deleteInventoryMonthRemote(businessId: string, month: stri
 
 // ---------- Ventas: abono / pago inicial ----------
 export async function addSalePaymentRemote(saleId: string, payment: Payment) {
-  const { error } = await supabase.from('sale_payments').insert({ id: payment.id, sale_id: saleId, amount: payment.amount, payment_date: payment.date, note: payment.note || null, payment_method: payment.method || payment.accountName || null, account_id: payment.accountId || null, account_name: payment.accountName || null });
+  const { error } = await supabase.from('sale_payments').insert({ id:payment.id,sale_id:saleId,amount:payment.amount,payment_date:payment.date,note:payment.note||null,payment_method:payment.paymentChannel||payment.method||null,account_id:payment.accountId||null,account_name:payment.accountName||null,exchange_rate:payment.exchangeRate||null,sale_amount:payment.saleAmount??null,sale_currency:payment.saleCurrency?toDbCurrency(payment.saleCurrency):null,account_amount:payment.accountAmount??null,account_currency:payment.accountCurrency?toDbCurrency(payment.accountCurrency):null });
   if (error) throw error;
 }
 export async function updateSalePaidRemote(saleId: string, paidAmount: number, status: string) {

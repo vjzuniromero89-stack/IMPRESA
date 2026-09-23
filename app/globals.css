@@ -446,3 +446,6 @@ tr.salePaidRow>td{transition:background .2s ease}
 .accountStatementPage .tablewrap th:nth-child(3),.accountStatementPage .tablewrap th:nth-child(4),.accountStatementPage .tablewrap th:nth-child(5),
 .generalStatementBlock .tablewrap th:nth-child(4),.generalStatementBlock .tablewrap th:nth-child(5),.generalStatementBlock .tablewrap th:nth-child(6),.generalStatementBlock .tablewrap th:nth-child(7){white-space:nowrap}
 @media(max-width:820px){.generalCurrencySummary{grid-template-columns:1fr}.generalStatementHead{grid-template-columns:1fr}}
+
+/* v3.54 · Historial general = mismo estado de movimientos que cada cuenta */
+.generalMovementDescription{display:flex;flex-direction:column;gap:3px}.generalMovementDescription strong{font-weight:700;color:#153f73}.generalMovementDescription span{font-size:12px;color:#60738e}.mixedBalanceCell{display:flex;flex-direction:column;gap:2px}.mixedBalanceCell strong{font-weight:800}.mixedBalanceCell span{font-size:12px;color:#60738e}
