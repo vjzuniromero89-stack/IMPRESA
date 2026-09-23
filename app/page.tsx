@@ -7,7 +7,7 @@ import Users from '../components/Users';
 import ManagedSelect from '../components/ManagedSelect';
 import {Sales,Expenses,SalesMethods} from '../components/SalesWorkspace';
 import type {Payment,Sale,Expense,Account,InventoryItem,InventoryClose,DebtPayment,MonthClose,Quote,InitialBase,AppUser,Debt,DebtPaymentRecord,AccountBalanceEntry} from '../lib/db';
-import {uid,ensureBusiness,fetchBusinessSettings,updateRateRemote,confirmInitialBaseRemote,useSalesCloud,useExpensesCloud,useAccountsCloud,useQuotesCloud,useMonthClosesCloud,useDebtsCloud,loadInventory,addInventoryItemRemote,addInventoryItemsBulkRemote,updateInventoryItemRemote,deleteInventoryItemRemote,deleteInventoryMonthRemote,logActivity,loadDebtPayments,addDebtPaymentRemote,removeDebtPaymentRemote,loadAccountBalanceHistory,addAccountBalanceHistoryRemote,addInventoryCategoryRemote,addPaymentMethodRemote,addInventorySizeRemote,setInventoryBaselineMonthRemote,removeInventoryCategoryRemote,removePaymentMethodRemote,removeInventorySizeRemote,addExpenseCategoryRemote,removeExpenseCategoryRemote,addExpensePaymentMethodRemote,removeExpensePaymentMethodRemote} from '../lib/db';
+import {uid,ensureBusiness,fetchBusinessSettings,updateRateRemote,confirmInitialBaseRemote,useSalesCloud,useExpensesCloud,useAccountsCloud,useQuotesCloud,useMonthClosesCloud,useDebtsCloud,loadInventory,addInventoryItemRemote,addInventoryItemsBulkRemote,updateInventoryItemRemote,deleteInventoryItemRemote,deleteInventoryMonthRemote,logActivity,loadDebtPayments,addDebtPaymentRemote,removeDebtPaymentRemote,loadAccountBalanceHistory,addAccountBalanceHistoryRemote,setInitialAccountBalanceRemote,addInventoryCategoryRemote,addPaymentMethodRemote,addInventorySizeRemote,setInventoryBaselineMonthRemote,removeInventoryCategoryRemote,removePaymentMethodRemote,removeInventorySizeRemote,addExpenseCategoryRemote,removeExpenseCategoryRemote,addExpensePaymentMethodRemote,removeExpensePaymentMethodRemote} from '../lib/db';
 
 const CURRENT_USER_KEY='impresa_current_user';
 
@@ -217,15 +217,33 @@ function Accounts({accounts,setAccounts,rate,businessId,logCtx,accountHistory,re
  const movementDate=(h:AccountBalanceEntry)=>h.transactionDate||String(h.at||'').slice(0,10);
  const movementDetail=(h:AccountBalanceEntry)=>{if(h.description)return h.description;const raw=h.changedBy||'Movimiento';const parts=raw.split(' · ');return parts.length>1?parts.slice(1).join(' · '):raw};
  const sortHistory=(rows:AccountBalanceEntry[])=>[...rows].filter(h=>Math.abs(movementDelta(h))>=0.005).sort((x,y)=>movementDate(y).localeCompare(movementDate(x))||String(y.at).localeCompare(String(x.at)));
+ // Si una cuenta ya tiene saldo pero versiones anteriores no guardaron su saldo inicial
+ // en el libro bancario, calculamos ese saldo de apertura a partir del saldo actual
+ // menos todos los movimientos reales conocidos. Así el historial individual y el
+ // historial general nunca quedan vacíos cuando sí existe dinero en la cuenta.
+ const ledgerHistory=(()=>{
+  const rows=[...(((accountHistory as AccountBalanceEntry[])||[]))];
+  for(const a of orderedAccounts){
+   const mine=rows.filter(h=>h.accountId===a.id);
+   const hasOpening=mine.some(h=>h.sourceType==='initial_balance'||/saldo inicial/i.test(h.description||h.changedBy||''));
+   if(hasOpening)continue;
+   const net=mine.reduce((n,h)=>n+movementDelta(h),0);
+   const opening=round(Number(a.balance||0)-net);
+   if(Math.abs(opening)<0.005)continue;
+   const dates=mine.map(movementDate).filter(Boolean).sort();
+   rows.push({id:`opening-${a.id}`,accountId:a.id,accountName:a.name,currency:a.currency,previousBalance:0,newBalance:opening,changedBy:'Sistema · Saldo inicial',description:'Saldo inicial',sourceType:'initial_balance',transactionDate:dates[0]||a.updated||today(),at:'1970-01-01T00:00:00.000Z'});
+  }
+  return rows;
+ })();
  if(historyAccountId){
   const a=orderedAccounts.find(x=>x.id===historyAccountId);
   if(a){
    let running=round(Number(a.balance)||0);
-   const rows=sortHistory(((accountHistory as AccountBalanceEntry[])||[]).filter(h=>h.accountId===a.id)).map(h=>{const delta=movementDelta(h),ending=running;running=round(running-delta);return [movementDate(h),movementDetail(h),delta>0?money(delta,h.currency):'—',delta<0?money(Math.abs(delta),h.currency):'—',money(ending,h.currency)]});
+   const rows=sortHistory(ledgerHistory.filter(h=>h.accountId===a.id)).map(h=>{const delta=movementDelta(h),ending=running;running=round(running-delta);return [movementDate(h),movementDetail(h),delta>0?money(delta,h.currency):'—',delta<0?money(Math.abs(delta),h.currency):'—',money(ending,h.currency)]});
    return <div className="accountStatementPage"><div className="accountStatementHead"><div><span>HISTORIAL DE CUENTA</span><h2>{a.name}</h2><p>{a.currency} · Estado de movimientos estilo bancario</p></div><div className="accountStatementBalance"><small>Saldo actual</small><strong>{money(a.balance,a.currency)}</strong></div><button className="btn" onClick={()=>setHistoryAccountId(null)}>← Volver a Banco y Efectivo</button></div><Panel title={`Movimientos · ${a.name}`}>{!rows.length?<Empty text="Esta cuenta todavía no tiene movimientos registrados."/>:<Table heads={['Fecha','Descripción','Depósitos / Créditos','Retiros / Débitos','Saldo final']} rows={rows}/>}<div className="note">El historial muestra solamente movimientos reales de dinero. Si una venta o un gasto se elimina, su movimiento desaparece del historial en lugar de crear una línea de reversión.</div></Panel></div>;
   }
  }
- const generalEntries=sortHistory((accountHistory as AccountBalanceEntry[])||[]);
+ const generalEntries=sortHistory(ledgerHistory);
  let runningC=round(totalCordobas),runningUSD=round(totalDollars);
  const accountRunning=new Map<string,number>(orderedAccounts.map(a=>[a.id,round(Number(a.balance)||0)]));
  const generalRows=generalEntries.map(h=>{const delta=movementDelta(h),accountEnding=accountRunning.get(h.accountId)??round(Number(h.newBalance)||0),endingC=runningC,endingUSD=runningUSD;accountRunning.set(h.accountId,round(accountEnding-delta));if(h.currency==='US$')runningUSD=round(runningUSD-delta);else runningC=round(runningC-delta);return [movementDate(h),h.accountName||orderedAccounts.find(a=>a.id===h.accountId)?.name||'Cuenta',movementDetail(h),delta>0?money(delta,h.currency):'—',delta<0?money(Math.abs(delta),h.currency):'—',money(accountEnding,h.currency),<div className="mixedBalanceCell" key={`balance-${h.id}`}><strong>{money(endingC,'C$')}</strong><span>{money(endingUSD,'US$')}</span></div>]});
@@ -707,16 +725,17 @@ function Accounting({sales,expenses,accounts,closes,monthCloses,month,rate,initi
 }
 function Quotes({quotes,setQuotes,rate}:any){const [f,setF]=useState({client:'',description:'',amount:'',currency:'C$'});const entered=+f.amount||0,nio=toNio(entered,f.currency as 'C$'|'US$',rate);const add=()=>{if(!f.client||!entered)return;setQuotes([...quotes,{id:uid(),date:today(),client:f.client,description:f.description,amount:nio,currency:f.currency as 'C$'|'US$',enteredAmount:entered,status:'Borrador'}]);setF({client:'',description:'',amount:'',currency:'C$'})};const approve=(q:Quote)=>{setQuotes(quotes.map((x:Quote)=>x.id===q.id?{...x,status:'Aprobada'}:x))};return <Panel title="Cotizaciones"><div className="form grid"><Input l="Cliente" v={f.client} s={v=>setF({...f,client:v})}/><Input l="Trabajo" v={f.description} s={v=>setF({...f,description:v})}/><MoneyInput l="Total" v={f.amount} s={v=>setF({...f,amount:v})} c={f.currency as 'C$'|'US$'} sc={c=>setF({...f,currency:c})}/><div className="conversion"><span>Conversión automática</span><b>{dual(nio,rate)}</b></div><button className="btn primary" onClick={add}>Crear cotización</button></div><Table heads={['Nº','Cliente','Trabajo','C$','US$','Estado','Acción']} rows={quotes.slice().reverse().map((q:Quote)=>[q.id,q.client,q.description,money(q.amount,'C$'),money(rate>0?q.amount/rate:0,'US$'),q.status,<div className="actions">{q.status==='Borrador'?<button className="small" onClick={()=>approve(q)}>Aprobar</button>:null}<button className="dangerSmall" onClick={()=>{if(confirm('¿Borrar esta cotización?'))setQuotes(quotes.filter((z:Quote)=>z.id!==q.id))}}>Borrar</button></div>])}/></Panel>}
 function Reports({sales,expenses,closes,accounts,rate}:any){const months=Array.from(new Set([...sales.map((x:Sale)=>x.date.slice(0,7)),...expenses.map((x:Expense)=>x.date.slice(0,7)),...closes.map((x:InventoryClose)=>x.month)])).sort().reverse();return <Panel title="Resumen por mes"><Table heads={['Mes','Ventas','Gastos','Diferencia','Inventario cierre']} rows={months.map((m:any)=>{const s=sales.filter((x:Sale)=>x.date.startsWith(m)).reduce((a:number,x:Sale)=>a+x.amount,0),e=expenses.filter((x:Expense)=>x.date.startsWith(m)).reduce((a:number,x:Expense)=>a+x.amount,0),i=[...closes].reverse().find((x:InventoryClose)=>x.month===m);return [m,money(s),money(e),money(s-e),money(i?.total||0)]})}/></Panel>}
-function Settings({rate,setRate,initialBase,accounts,setAccounts,businessId,logCtx,reloadAccountHistory}:any){
+function Settings({rate,setRate,initialBase,accounts,setAccounts,reloadAccounts,businessId,logCtx,reloadAccountHistory}:any){
  const [initialBalances,setInitialBalances]=useState<Record<string,string>>({});
  const saveInitialBalance=async(a:Account)=>{
   const raw=initialBalances[a.id]; const amount=Number(raw);
   if(raw==null||raw.trim()===''||!Number.isFinite(amount)||amount<0)return alert('Escribe un saldo inicial válido.');
   if(a.balance!==0&&!confirm(`${a.name} ya tiene ${money(a.balance,a.currency)}. ¿Quieres reemplazarlo por el saldo inicial de ${money(amount,a.currency)}?`))return;
   try{
-   if(businessId)await addAccountBalanceHistoryRemote(businessId,{id:uid(),accountId:a.id,accountName:a.name,currency:a.currency,previousBalance:a.balance,newBalance:amount,changedBy:`${logCtx?.username||'Sistema'} · Saldo inicial`,description:'Saldo inicial',sourceType:'initial_balance',transactionDate:today()});
-   await setAccounts((accounts as Account[]).map(x=>x.id===a.id?{...x,balance:amount,updated:today()}:x));
-   reloadAccountHistory&&reloadAccountHistory();
+   if(!businessId)throw new Error('Todavía se está preparando tu negocio.');
+   await setInitialAccountBalanceRemote(businessId,a.id,amount,`${logCtx?.username||'Sistema'} · Saldo inicial`);
+   await reloadAccounts?.();
+   await reloadAccountHistory?.();
    setInitialBalances(prev=>({...prev,[a.id]:''}));
    alert(`Saldo inicial guardado en ${a.name}: ${money(amount,a.currency)}.`);
   }catch(err){console.error(err);alert(errMsg(err,'No se pudo guardar el saldo inicial.'))}

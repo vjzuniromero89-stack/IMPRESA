@@ -300,6 +300,22 @@ export async function addAccountBalanceHistoryRemote(businessId: string, entry: 
   });
   if (error) throw error;
 }
+export async function setInitialAccountBalanceRemote(businessId: string, accountId: string, amount: number, changedBy?: string) {
+  const { error } = await supabase.rpc('impresa_set_initial_balance', {
+    p_business_id: businessId,
+    p_account_id: accountId,
+    p_amount: amount,
+    p_changed_by: changedBy || 'Sistema'
+  });
+  if (error) {
+    const msg = String((error as any)?.message || '');
+    if (/impresa_set_initial_balance|function .* does not exist|schema cache/i.test(msg)) {
+      throw new Error('Falta ejecutar migration/020_initial_balance_ledger.sql en Supabase antes de guardar saldos iniciales.');
+    }
+    throw error;
+  }
+}
+
 export async function loadAccountBalanceHistory(businessId: string): Promise<AccountBalanceEntry[]> {
   const { data, error } = await supabase.from('account_balance_history').select('*').eq('business_id', businessId).order('created_at', { ascending: false });
   if (error) throw error;
