@@ -106,8 +106,8 @@ export function Expenses({expenses,setExpenses,accounts,setAccounts,month,rate,e
   if(!setAccounts||!accounts)return;
   const next=accountList.map(a=>{
    let balance=Number(a.balance)||0;
-   if(oldExpense?.sourceAccountId===a.id) balance+=Number(oldExpense.enteredAmount??(oldExpense.currency==='US$'?oldExpense.amount/rate:oldExpense.amount));
-   if(newExpense?.sourceAccountId===a.id) balance-=Number(newExpense.enteredAmount??(newExpense.currency==='US$'?newExpense.amount/rate:newExpense.amount));
+   if(oldExpense && oldExpense.sourceAccountId===a.id) balance+=Number(oldExpense.enteredAmount??(oldExpense.currency==='US$'?oldExpense.amount/rate:oldExpense.amount));
+   if(newExpense && newExpense.sourceAccountId===a.id) balance-=Number(newExpense.enteredAmount??(newExpense.currency==='US$'?newExpense.amount/rate:newExpense.amount));
    return balance===a.balance?a:{...a,balance,updated:today()};
   });
   setAccounts(next);
