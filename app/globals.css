@@ -466,3 +466,15 @@ tr.salePaidRow>td{transition:background .2s ease}
 .moneyFlowTable .tablewrap th:nth-child(5),.moneyFlowTable .tablewrap th:nth-child(6),.moneyFlowTable .tablewrap th:nth-child(7),
 .generalStatementBlock .tablewrap th:nth-child(4),.generalStatementBlock .tablewrap th:nth-child(5),.generalStatementBlock .tablewrap th:nth-child(6){white-space:nowrap}
 .generalMovementDescription span{font-size:13px}
+
+
+/* v3.56.7 · Tipo automático + una sola columna de monto */
+.moneyFlowInitial{font-weight:800;color:#24476f}
+.moneyFlowTable .tablewrap table{min-width:1040px}
+.generalStatementBlock .tablewrap table{min-width:940px}
+.moneyFlowTable .tablewrap th:nth-child(4),
+.moneyFlowTable .tablewrap th:nth-child(5),
+.moneyFlowTable .tablewrap th:nth-child(6),
+.generalStatementBlock .tablewrap th:nth-child(3),
+.generalStatementBlock .tablewrap th:nth-child(4),
+.generalStatementBlock .tablewrap th:nth-child(5){white-space:nowrap}
