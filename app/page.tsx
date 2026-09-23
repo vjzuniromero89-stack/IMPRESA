@@ -212,7 +212,7 @@ function Accounts({accounts,setAccounts,rate,businessId,logCtx,accountHistory,re
   </Panel>
  })()}
  <Panel title="Agregar cuenta o caja"><div className="form inline"><Input l="Nombre (ej. BAC Dólares)" v={f.name} s={v=>setF({...f,name:v})}/><Select l="Moneda" v={f.currency} s={v=>setF({...f,currency:v})} opts={['C$','US$']}/><button className="btn primary" onClick={add}>Agregar cuenta</button></div><div className="note">Tipo de cambio actual del sistema: C${rate.toFixed(2)} = US$1.00. El resumen convierte automáticamente todas las cuentas. Cada vez que actualizas el saldo de una cuenta, el saldo anterior queda guardado en su "Historial".</div></Panel></>}
-function Inventory({closes,businessId,reloadInventory,monthCloses,month,rate,logCtx,inventoryCategories,addInventoryCategory,removeInventoryCategory,inventorySizes,addInventorySize,removeInventorySize,inventoryBaselineMonth,setInventoryBaselineMonth}:any){
+function Inventory({closes,sales,businessId,reloadInventory,monthCloses,month,rate,logCtx,inventoryCategories,addInventoryCategory,removeInventoryCategory,inventorySizes,addInventorySize,removeInventorySize,inventoryBaselineMonth,setInventoryBaselineMonth}:any){
  const existing=[...closes].reverse().find((x:InventoryClose)=>x.month===month);
  const items=existing?.items||[];
  const categories:string[]=(inventoryCategories&&inventoryCategories.length)?inventoryCategories:['Camisas','Hilos','Tintas','Vinil','Sublimación','Empaque','Otros'];
@@ -222,6 +222,8 @@ function Inventory({closes,businessId,reloadInventory,monthCloses,month,rate,log
  // La talla se elige de la lista guardada (igual que la categoría), para que nadie la escriba mal por error.
  const sizeOptions=Array.from(new Set([...sizes,...(f.talla?[f.talla]:[])]));
  const total=items.reduce((a:number,x:InventoryItem)=>a+x.qty*x.unitValue,0),entered=+f.unitValue||0,unitNio=toNio(entered,f.currency as 'C$'|'US$',rate),closed=monthCloses.some((x:MonthClose)=>x.month===month);
+ const soldById:Record<string,number>={}; (sales||[]).filter((s:Sale)=>s.date.startsWith(month)).forEach((s:Sale)=>{const ls=s.lineItems?.length?s.lineItems:(s.inventoryItemId?[{inventoryItemId:s.inventoryItemId,quantity:s.quantity||0}]:[] as any[]);ls.forEach((l:any)=>{if(l.inventoryItemId)soldById[l.inventoryItemId]=(soldById[l.inventoryItemId]||0)+(Number(l.quantity)||0)})});
+ const soldUnits=Object.values(soldById).reduce((a:number,b:number)=>a+b,0);
  const handleAddCategory=async()=>{
   const name=prompt('Nombre de la nueva categoría de inventario:');
   if(!name||!name.trim())return;
@@ -380,6 +382,7 @@ function Inventory({closes,businessId,reloadInventory,monthCloses,month,rate,log
  </div><div className="note">{editingId?'Al guardar los cambios, se actualiza este producto en la nube.':'Al presionar “Agregar al conteo”, el producto queda registrado y guardado automáticamente en la nube. No necesitas guardar el inventario otra vez.'}</div></>}
  <Table heads={['Código','Detalle','Categoría','Talla','Color','Cantidad','Precio C$','Precio US$','Total C$','Total US$','Acción']} rows={items.map((x:InventoryItem)=>[<b>{x.sku||'—'}</b>,<span>{x.name}{x.note&&<span className="noteDot" title={x.note}> ⓘ</span>}</span>,x.category,x.talla||'—',x.color||'—',x.qty,money(x.unitValue,'C$'),money(rate>0?x.unitValue/rate:0,'US$'),money(x.qty*x.unitValue,'C$'),money(rate>0?x.qty*x.unitValue/rate:0,'US$'),<div className="actions"><button className="small" onClick={()=>editItem(x)}>Editar</button><button className="dangerSmall" onClick={()=>removeItem(x.id,x.name)}>Borrar</button></div>])}/>
  <div className="cards"><div className="card"><span>LÍNEAS CONTADAS</span><strong>{items.length}</strong></div><div className="card"><span>VALOR INVENTARIO</span><strong>{dual(total,rate)}</strong></div></div></Panel>
+ <Panel title="Control contable de existencias"><p className="muted">Este cuadro conecta Inventario con Ventas. <b>Existencia inicial</b> = lo que había antes de las ventas registradas del mes; <b>Vendido</b> sale de las ventas enlazadas al producto; <b>Existencia actual</b> es lo que queda físicamente. El valor actual es el que usa el total del inventario.</p><div className="cards"><div className="card"><span>UNIDADES VENDIDAS</span><strong>{soldUnits}</strong></div><div className="card"><span>VALOR ACTUAL</span><strong>{dual(total,rate)}</strong></div></div><Table heads={['Código','Producto','Talla','Color','Existencia inicial','Vendido','Existencia actual','Valor actual C$']} rows={items.map((x:InventoryItem)=>{const sold=soldById[x.id]||0;return [x.sku||'—',x.name,x.talla||'—',x.color||'—',x.qty+sold,<b>{sold}</b>,<b>{x.qty}</b>,money(x.qty*x.unitValue,'C$')]})}/></Panel>
  <Panel title="Importar inventario desde Excel">
  <p className="muted">Sube tu Excel (.xlsx) o CSV con las columnas Detalle, Talla, Color, Cantidad y Precio — igual como lo llevas tú. La categoría de todo el archivo es la que tengas elegida arriba en "Categoría", y el precio se toma en la moneda que elijas aquí.</p>
  {closed?<p className="empty">Este mes ya está cerrado, no se puede importar.</p>:<>
