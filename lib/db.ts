@@ -453,6 +453,55 @@ export async function updateSalePaidRemote(saleId: string, paidAmount: number, s
   if (error) throw error;
 }
 
+
+
+// ---------- Reinicio total de datos de prueba ----------
+// Conserva la estructura del negocio, usuarios, listas de configuración y
+// las cuentas/cajas creadas. Borra toda la actividad operativa y deja las
+// cuentas existentes con saldo 0 para comenzar un registro real desde cero.
+export async function resetBusinessOperationalDataRemote(businessId: string) {
+  // Preferimos una función SQL transaccional: si algo falla, Supabase revierte
+  // todo el reinicio en vez de dejar la base borrada a medias.
+  const { error: rpcError } = await supabase.rpc('impresa_reset_operational_data', { p_business_id: businessId });
+  if (!rpcError) return;
+
+  const msg = String((rpcError as any)?.message || rpcError || '');
+  const missingRpc = /impresa_reset_operational_data|function .* does not exist|schema cache/i.test(msg);
+  if (!missingRpc) throw rpcError;
+
+  // Compatibilidad: si todavía no se ejecutó la migración 022, hacemos el
+  // mismo borrado con las tablas abiertas de IMPRESA. El orden respeta las
+  // relaciones y triggers actuales. Al final los saldos se fuerzan a 0.
+  const del = async (table: string) => {
+    const { error } = await supabase.from(table).delete().eq('business_id', businessId);
+    if (error) throw error;
+  };
+
+  await del('sales');              // cascade: sale_payments
+  await del('expenses');
+  await del('debts');              // cascade: debt_payments
+  await del('quotes');
+  await del('month_closes');
+  await del('monthly_inventory');
+  await del('inventory_month_notes');
+  await del('products');
+  await del('account_balance_history');
+  await del('activity_log');
+
+  const { error: accountsError } = await supabase.from('financial_accounts')
+    .update({ balance: 0, updated_at: new Date().toISOString() })
+    .eq('business_id', businessId);
+  if (accountsError) throw accountsError;
+
+  const { error: businessError } = await supabase.from('businesses').update({
+    initial_base_confirmed: false,
+    initial_base_confirmed_at: null,
+    initial_base_cordobas: null,
+    inventory_baseline_month: null
+  }).eq('id', businessId);
+  if (businessError) throw businessError;
+}
+
 // ---------- Hook genérico: colección local sincronizada con una tabla ----------
 // Mantiene la MISMA forma que useState([...]) para no tocar la lógica de cada
 // pantalla (Ventas/Gastos/Cuentas/Cotizaciones siguen usando setX(nuevoArreglo)),

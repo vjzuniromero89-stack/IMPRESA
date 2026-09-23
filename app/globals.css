@@ -478,3 +478,12 @@ tr.salePaidRow>td{transition:background .2s ease}
 .generalStatementBlock .tablewrap th:nth-child(3),
 .generalStatementBlock .tablewrap th:nth-child(4),
 .generalStatementBlock .tablewrap th:nth-child(5){white-space:nowrap}
+
+/* v3.56.8 · Reinicio total de datos de prueba */
+.dangerResetPanel{margin-top:22px;border:1px solid #efb0b7;background:linear-gradient(135deg,#fff7f7,#fff0f1);border-radius:16px;padding:22px;display:flex;align-items:center;justify-content:space-between;gap:22px;box-shadow:0 8px 24px rgba(137,31,45,.07)}
+.dangerResetPanel h2{margin:4px 0 8px;color:#9f2431;font-size:20px}
+.dangerResetPanel p{margin:0;max-width:980px;color:#6f3b42;line-height:1.55;font-size:13px}
+.dangerResetEyebrow{font-size:10px;letter-spacing:.14em;font-weight:900;color:#ba3544}
+.dangerResetButton{flex:0 0 auto;border:1px solid #c72d3e;background:#b42332;color:#fff;border-radius:10px;padding:13px 18px;font-weight:900;font-size:12px;cursor:pointer;box-shadow:0 5px 14px rgba(180,35,50,.2)}
+.dangerResetButton:hover{background:#951f2c}.dangerResetButton:disabled{opacity:.55;cursor:not-allowed}
+@media(max-width:820px){.dangerResetPanel{align-items:stretch;flex-direction:column}.dangerResetButton{width:100%}}
