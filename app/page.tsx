@@ -265,7 +265,8 @@ function Accounts({accounts,setAccounts,rate,businessId,logCtx,accountHistory,re
   return parsed>0?parsed:rate;
  };
  const isInternalTransfer=(h:AccountBalanceEntry)=>h.sourceType==='transfer'||/transferencia (enviada|recibida)/i.test(`${h.description||''} ${h.changedBy||''}`);
- const generalMovementType=(h:AccountBalanceEntry)=>isInternalTransfer(h)?'Transferencia':isInitial(h)?'Saldo inicial':movementDelta(h)>0?'Entrada':'Salida';
+ const isInitialMovement=(h:AccountBalanceEntry)=>h.sourceType==='initial_balance'||/saldo inicial/i.test(`${h.description||''} ${h.changedBy||''}`);
+ const generalMovementType=(h:AccountBalanceEntry)=>isInternalTransfer(h)?'Transferencia':isInitialMovement(h)?'Saldo inicial':movementDelta(h)>0?'Entrada':'Salida';
  const generalMovementTypeNode=(h:AccountBalanceEntry)=>{const t=generalMovementType(h);return t==='Entrada'?<span className="moneyFlowIn">Entrada</span>:t==='Salida'?<span className="moneyFlowOut">Salida</span>:t==='Transferencia'?<span className="moneyFlowTransfer">Transferencia</span>:t};
  const generalRows=generalEntries.map(h=>{
   const delta=movementDelta(h);
@@ -278,7 +279,7 @@ function Accounts({accounts,setAccounts,rate,businessId,logCtx,accountHistory,re
   runningGeneralC=round(runningGeneralC-deltaC);
   const accountName=h.accountName||orderedAccounts.find(a=>a.id===h.accountId)?.name||'Cuenta';
   const typeNode=generalMovementTypeNode(h);
-  const amountNode=isInitial(h)?<span className="moneyFlowInitial">{money(Math.abs(delta),h.currency)}</span>:delta>0?<span className="moneyFlowIn">+ {money(delta,h.currency)}</span>:delta<0?<span className="moneyFlowOut">− {money(Math.abs(delta),h.currency)}</span>:'—';
+  const amountNode=isInitialMovement(h)?<span className="moneyFlowInitial">{money(Math.abs(delta),h.currency)}</span>:delta>0?<span className="moneyFlowIn">+ {money(delta,h.currency)}</span>:delta<0?<span className="moneyFlowOut">− {money(Math.abs(delta),h.currency)}</span>:'—';
   return [movementDate(h),<div className="generalMovementDescription" key={`desc-${h.id}`}><strong>{movementDetail(h)}</strong><span>{accountName} · {h.currency}{h.currency==='US$'?` · TC ${usedRate.toFixed(4)}`:''}</span></div>,typeNode,amountNode,dual(endingC,rate)];
  });
  return <><div className="totalCircleWrap"><div className="totalCircle bankTotalCircle"><div className="circleInner"><span>TOTAL BANCOS + EFECTIVO</span><strong>{money(totalC,'C$')}</strong><b>{money(rate>0?totalC/rate:0,'US$')}</b><small>{accounts.length} {accounts.length===1?'cuenta sumada':'cuentas sumadas'}</small></div></div><div className="circleBreakdown"><h3>¿Qué está sumando?</h3>{orderedAccounts.map(a=><div key={a.id}><span>{a.name}</span><b>{money(a.balance,a.currency)}</b></div>)}{!accounts.length&&<p className="muted">Agrega una cuenta o caja y aparecerá aquí automáticamente.</p>}<div className="circleFormula">Las cuentas en C$ y US$ se mantienen separadas. El total consolidado convierte los dólares usando el tipo de cambio actual.</div></div></div><div className="accountToolbar"><button className="btn primary" onClick={()=>setShowNewAccount(true)}>+ Crear cuenta nueva</button><span>Las cuentas nuevas aparecerán automáticamente en ventas, gastos y transferencias.</span></div><div className="cards">{orderedAccounts.map((a:Account)=>{const nio=a.currency==='US$'?a.balance*rate:a.balance;return <div className="card account" key={a.id}><span>{a.name} · {a.currency}</span><strong>{money(a.balance,a.currency)}</strong><small>{dual(nio,rate)} · Actualizado {a.updated}</small><div className="actions"><button className="small transferBtn" onClick={()=>beginTransfer(a)}>Transferir</button><button className="small" onClick={()=>toggleHistory(a)}>Historial</button></div></div>})}</div>
