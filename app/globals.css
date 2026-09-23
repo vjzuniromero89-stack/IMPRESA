@@ -454,3 +454,6 @@ tr.salePaidRow>td{transition:background .2s ease}
 /* v3.56.1 · Control de dinero: entradas verdes, salidas rojas */
 .moneyFlowIn{color:#07845f;font-weight:800}
 .moneyFlowOut{color:#c82020;font-weight:800}
+
+/* v3.56.3 · Transferencias visibles en Control de dinero sin alterar saldo */
+.moneyFlowTransfer{color:#2563eb;font-weight:800}
