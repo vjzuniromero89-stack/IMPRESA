@@ -487,3 +487,35 @@ tr.salePaidRow>td{transition:background .2s ease}
 .dangerResetButton{flex:0 0 auto;border:1px solid #c72d3e;background:#b42332;color:#fff;border-radius:10px;padding:13px 18px;font-weight:900;font-size:12px;cursor:pointer;box-shadow:0 5px 14px rgba(180,35,50,.2)}
 .dangerResetButton:hover{background:#951f2c}.dangerResetButton:disabled{opacity:.55;cursor:not-allowed}
 @media(max-width:820px){.dangerResetPanel{align-items:stretch;flex-direction:column}.dangerResetButton{width:100%}}
+
+.invoiceSaleRedesign{padding:0!important;overflow:hidden}
+.redesignedTitle{padding:20px 24px;background:linear-gradient(180deg,#f8fbff,#eef5ff);border-bottom:1px solid #d7e4f3;align-items:center}
+.salesInvoiceTop{display:grid;grid-template-columns:minmax(320px,1.1fr) minmax(320px,.9fr);gap:18px;margin-bottom:18px}
+.salesInvoiceCard,.salesInvoiceNotesCard,.salesInvoiceTotalsCard{border:1px solid #cfe0f3;border-radius:16px;background:#fff;box-shadow:0 10px 28px rgba(23,63,115,.05)}
+.salesInvoiceCardHead{padding:14px 18px;border-bottom:1px solid #deebf8;background:linear-gradient(180deg,#eef7ff,#e3f0ff);font-size:18px;font-weight:850;color:#163d6d;border-radius:16px 16px 0 0}
+.salesInvoiceCardBody{padding:18px}
+.salesInvoiceClientBody{display:grid;grid-template-columns:1fr;gap:14px}
+.salesInvoiceClientBody textarea{min-height:140px;resize:vertical}
+.salesInvoiceDetailsBody{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.salesInvoiceDetailsBody label{margin-bottom:0}
+.salesInvoiceItems{margin-top:4px}
+.salesInvoiceItemsHead{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;margin-bottom:12px}
+.salesInvoiceItemsHead h3{margin:0;color:#133f75}
+.salesInvoiceItemsHead p{margin:4px 0 0;color:#60758f}
+.redesignedTableWrap{border-radius:16px}
+.redesignedInvoiceTable{min-width:1180px}
+.redesignedInvoiceTable th{padding:11px 9px;font-size:12px}
+.redesignedInvoiceTable td{padding:10px 8px}
+.salesInvoiceHelper{margin-top:12px}
+.salesInvoiceBottom{display:grid;grid-template-columns:minmax(320px,1fr) minmax(280px,380px);gap:18px;margin-top:18px}
+.salesInvoiceNotesCard{padding:18px}
+.salesInvoiceNotesCard h3{margin:0 0 12px;color:#133f75}
+.salesInvoiceTotalsCard{padding:18px;background:linear-gradient(180deg,#fbfdff,#f4f8ff)}
+.salesTotalsRow{display:flex;justify-content:space-between;gap:16px;padding:10px 0;border-bottom:1px solid #dfeaf7;color:#24496f}
+.salesTotalsFinal{display:flex;justify-content:space-between;gap:16px;align-items:center;margin-top:14px;padding:16px 18px;border-radius:14px;background:linear-gradient(135deg,#1f85ff,#0f6de2);color:#fff}
+.salesTotalsFinal strong{font-size:28px;line-height:1}
+.salesInvoiceActions{display:flex;justify-content:flex-end;gap:12px;padding-top:18px;margin-top:18px;border-top:1px solid #dce6f3}
+.salesInvoiceActions .btn{min-width:150px}
+.salesInvoiceActions .primary{min-width:190px}
+@media(max-width:1180px){.salesInvoiceTop,.salesInvoiceBottom{grid-template-columns:1fr}.salesInvoiceDetailsBody{grid-template-columns:1fr 1fr}}
+@media(max-width:780px){.redesignedTitle{padding:18px}.salesInvoiceDetailsBody{grid-template-columns:1fr}.salesInvoiceItemsHead{flex-direction:column;align-items:flex-start}.salesInvoiceActions{flex-direction:column}.salesInvoiceActions .btn,.salesInvoiceActions .primary{width:100%}}
