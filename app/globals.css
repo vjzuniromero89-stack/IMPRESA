@@ -627,3 +627,11 @@ tr.salePaidRow>td{transition:background .2s ease}
 .priceCordobaField>span{font-weight:850;color:#154b83;background:#eaf3ff;border:1px solid #c9daf0;border-radius:8px;padding:10px 8px}
 .priceCordobaField input{min-width:90px;flex:1}
 @media(max-width:760px){.simpleSalesEntryTable{min-width:820px}.simpleSalesEntryTable .unifiedDescriptionCell{min-width:260px}}
+
+/* v3.64.1 · Venta simple: descripción + categoría + total */
+.salesSimpleTotalTable{min-width:720px}
+.salesSimpleTotalTable .unifiedDescriptionCell input{width:100%;min-width:260px}
+.salesSimpleTotalTable .categorySelect{min-width:150px;min-height:42px}
+.salesSimpleTotalTable .totalSaleInput{min-width:160px}
+.salesSimpleTotalTable .totalSaleInput input{width:120px}
+@media(max-width:780px){.salesSimpleTotalTable{min-width:650px}}
