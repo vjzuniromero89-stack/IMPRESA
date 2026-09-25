@@ -617,3 +617,13 @@ tr.salePaidRow>td{transition:background .2s ease}
 .photoProductCell{grid-template-columns:minmax(260px,1fr)!important}
 .photoProductCell>select,.photoProductCell>input{width:100%}
 @media(max-width:820px){.saleEntryModeBar{grid-template-columns:repeat(3,minmax(72px,1fr))}.saleEntryModeBar button{font-size:11px;padding:7px 6px}.photoProductCell{min-width:310px}}
+
+/* v3.64 · captura de venta simplificada */
+.simpleSalesEntryTable{min-width:900px}
+.simpleSalesEntryTable .unifiedDescriptionCell{min-width:300px}
+.unifiedDescriptionCell>input{width:100%;min-height:42px}
+.categoryInput{min-width:150px;width:100%;min-height:42px}
+.priceCordobaField{display:flex;align-items:center;gap:7px;min-width:135px}
+.priceCordobaField>span{font-weight:850;color:#154b83;background:#eaf3ff;border:1px solid #c9daf0;border-radius:8px;padding:10px 8px}
+.priceCordobaField input{min-width:90px;flex:1}
+@media(max-width:760px){.simpleSalesEntryTable{min-width:820px}.simpleSalesEntryTable .unifiedDescriptionCell{min-width:260px}}
