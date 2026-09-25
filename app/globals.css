@@ -534,3 +534,59 @@ tr.salePaidRow>td{transition:background .2s ease}
 .photoInvoiceActions{display:flex;justify-content:flex-end;gap:12px;margin-top:22px;padding-top:18px;border-top:1px solid #dbe6f1}.photoInvoiceActions .btn{min-width:160px}
 @media(max-width:1050px){.photoInvoiceTop{grid-template-columns:1fr}.photoInvoiceBottom{grid-template-columns:1fr}.photoTotals{max-width:none}}
 @media(max-width:760px){.photoInvoiceHeader{grid-template-columns:auto 1fr}.photoInvoiceMeta{grid-column:1/-1;text-align:left}.photoBrandText span{font-size:27px}.invoiceSalePhoto fieldset{padding:14px}.photoAddRow{flex-direction:column;align-items:stretch}.photoInvoiceActions{flex-direction:column}.photoInvoiceActions .btn{width:100%}}
+
+/* v3.59 · Cuentas por cobrar entre meses */
+.salesReceivableBreakdown .receivableTotal{margin-top:7px;padding:13px 12px!important;border-radius:10px;background:#eaf2ff;border:1px solid #c8dcf7;color:#123f78}
+.salesReceivableBreakdown .receivableTotal b{font-size:15px}
+.priorReceivablesPanel{border-top:4px solid #e5a700}
+.priorReceivablesHead{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:14px}
+.priorReceivablesHead h2{margin:0 0 5px}
+.priorReceivablesHead p{margin:0}
+.priorReceivableTotal{min-width:245px;padding:12px 14px;border:1px solid #efd58a;border-radius:12px;background:#fff8dd;display:flex;flex-direction:column;gap:4px;text-align:right}
+.priorReceivableTotal span{font-size:12px;color:#725b15;font-weight:700}
+.priorReceivableTotal b{font-size:17px;color:#5e4800}
+@media(max-width:780px){.priorReceivablesHead{flex-direction:column}.priorReceivableTotal{width:100%;min-width:0;text-align:left}}
+
+/* v3.60 · navegación interna de Ventas */
+.salesInnerTabs{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 16px;padding:8px;border:1px solid #c8d9ef;border-radius:14px;background:#eef5ff}
+.salesInnerTabs button{appearance:none;border:1px solid transparent;background:transparent;color:#2a4d74;font-weight:800;padding:11px 16px;border-radius:10px;cursor:pointer;transition:.18s ease;display:inline-flex;align-items:center;gap:8px}
+.salesInnerTabs button:hover{background:#fff;border-color:#c6d8ef}
+.salesInnerTabs button.active{background:#2868d7;color:#fff;box-shadow:0 6px 16px rgba(40,104,215,.22)}
+.salesInnerTabs button span{display:inline-grid;place-items:center;min-width:24px;height:24px;padding:0 7px;border-radius:999px;background:rgba(255,255,255,.8);color:#214c84;font-size:12px}
+.salesInnerTabs button.active span{background:rgba(255,255,255,.2);color:#fff}
+@media(max-width:720px){.salesInnerTabs{display:grid;grid-template-columns:1fr}.salesInnerTabs button{justify-content:center;width:100%}}
+
+/* v3.60.1 · Ventas responsive para celular usando "modo escritorio" */
+@media (max-width:1200px){
+  header{flex-direction:column;align-items:stretch}
+  .pageHeading{width:100%;flex:none}
+  header .actions{width:100%;justify-content:flex-start}
+  .invoiceSalePhoto,.invoiceSalePhoto fieldset,.photoInvoiceTop,.photoInvoiceBox,.photoInvoiceBoxBody,.photoInvoiceBottom,.photoNotes,.photoTotals{min-width:0;max-width:100%}
+  .photoInvoiceBoxBody input,.photoInvoiceBoxBody select,.photoInvoiceBoxBody textarea{width:100%;max-width:100%;min-width:0}
+  .photoItemsWrap{width:100%;max-width:100%;min-width:0;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .photoAddRow{min-width:0;max-width:100%}
+  .photoSearchHint{min-width:0}
+}
+@media (min-width:721px) and (max-width:1050px){
+  aside{width:210px;padding-left:12px;padding-right:12px}
+  main{margin-left:210px;width:calc(100% - 210px);padding:18px 16px 34px;min-width:0;overflow-x:hidden}
+  .brand{font-size:18px}.sub{font-size:9px}
+  nav button{padding:9px 10px;font-size:12px}
+  header{padding:18px;gap:14px}
+  .pageHeading{align-items:flex-start}
+  .pageHeading h1{font-size:24px;overflow-wrap:normal;word-break:normal;white-space:normal}
+  .pageHeading p{max-width:none}
+  .salesInnerTabs{width:100%;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+  .salesInnerTabs button{justify-content:center;padding:10px 8px;min-width:0}
+  .photoInvoiceHeader{grid-template-columns:auto minmax(0,1fr);padding:16px 18px}
+  .photoInvoiceMeta{grid-column:1/-1;text-align:left}
+  .photoBrandMark{width:52px;height:52px;font-size:29px}
+  .photoBrandText span{font-size:26px}
+  .invoiceSalePhoto fieldset{padding:16px}
+  .photoInvoiceTop{grid-template-columns:1fr;gap:14px}
+  .photoInvoiceBottom{grid-template-columns:1fr;gap:14px}
+  .photoAddRow{flex-direction:column;align-items:stretch}
+  .photoAddRow .btn{width:100%}
+  .photoInvoiceActions{flex-wrap:wrap}
+  .photoInvoiceActions .btn{flex:1;min-width:140px}
+}
