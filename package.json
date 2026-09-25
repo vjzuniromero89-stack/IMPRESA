@@ -1,6 +1,6 @@
 {
   "name": "impresa",
-  "version": "3.58.1",
+  "version": "3.60.1",
   "private": true,
   "scripts": {
     "dev": "next dev",
