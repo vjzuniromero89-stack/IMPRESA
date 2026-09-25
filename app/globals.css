@@ -609,3 +609,11 @@ tr.salePaidRow>td{transition:background .2s ease}
 .saleTotalUnderPayment strong{font-size:26px;line-height:1.1}
 .saleTotalUnderPayment small{opacity:.9}
 @media(max-width:1050px){.photoDetailsBelowGrid{grid-template-columns:1fr}.saleTotalUnderPayment{grid-column:1}}
+
+/* v3.63 · Selector visible Producto / Servicio / Manual */
+.saleEntryModeBar{display:grid;grid-template-columns:repeat(3,minmax(78px,1fr));gap:5px;grid-column:1/-1}
+.saleEntryModeBar button{min-height:36px;border:1px solid #b9cde7;background:#f6f9fd;color:#24496f;border-radius:8px;font-weight:800;font-size:12px;padding:7px 9px;cursor:pointer;white-space:nowrap}
+.saleEntryModeBar button.active{background:#1769d8;color:#fff;border-color:#1769d8;box-shadow:0 3px 10px rgba(23,105,216,.18)}
+.photoProductCell{grid-template-columns:minmax(260px,1fr)!important}
+.photoProductCell>select,.photoProductCell>input{width:100%}
+@media(max-width:820px){.saleEntryModeBar{grid-template-columns:repeat(3,minmax(72px,1fr))}.saleEntryModeBar button{font-size:11px;padding:7px 6px}.photoProductCell{min-width:310px}}
